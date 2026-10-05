@@ -1,1 +1,16 @@
+# Mac files
+.DS_Store
 
+# Environment/config files
+.env
+
+# IDE files
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
