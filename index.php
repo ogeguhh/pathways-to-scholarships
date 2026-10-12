@@ -1,92 +1,73 @@
-<!DOCTYPE html>
-<html lang="en">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<?php
+// Set the page title
+$pageTitle = "Pathways to Scholarships";
 
-    <title>Pathways to Scholarships</title>
+// Load the shared website layout
+include 'includes/header.php';
+include 'includes/dev-banner.php';
+include 'includes/nav.php';
+?>
 
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
+<!-- Main header -->
+<header class="container text-center mt-5">
+    <h1>Find Scholarships For You</h1>
 
-<body>
+    <p class="lead">
+        Search for scholarship opportunities that match your education goals.
+    </p>
+</header>
 
-    <!-- Navigation bar -->
-    <nav class="navbar navbar-expand-lg bg-dark navbar-dark">
-        <div class="container">
-            <a class="navbar-brand" href="#">Pathways to Scholarships</a>
+<!-- Scholarship search area -->
+<main class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
 
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link active" href="#">Home</a>
-                <a class="nav-link" href="#">Search Scholarships</a>
-                <a class="nav-link" href="#">About</a>
-                <a class="nav-link" href="#">Login</a>
-            </div>
-        </div>
-    </nav>
+            <div class="card p-4">
 
-    <!-- Main header -->
-    <header class="container text-center mt-5">
-        <h1>Find Scholarships For You</h1>
+                <h2 class="text-center mb-4">Search Scholarships</h2>
 
-        <p class="lead">
-            Search for scholarship opportunities that match your education goals.
-        </p>
-    </header>
-
-    <!-- Scholarship search area -->
-    <main class="container mt-5">
-        <div class="row justify-content-center">
-            <div class="col-md-8">
-
-                <div class="card p-4">
-
-                    <h2 class="text-center mb-4">Search Scholarships</h2>
-
-                    <div class="mb-3">
-                        <label class="form-label">State</label>
-                        <select class="form-select">
-                            <option>Select State</option>
-                            <option>Minnesota</option>
-                            <option>Wisconsin</option>
-                            <option>Iowa</option>
-                        </select>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Grade Level</label>
-                        <select class="form-select">
-                            <option>Select Grade</option>
-                            <option>9th Grade</option>
-                            <option>10th Grade</option>
-                            <option>11th Grade</option>
-                            <option>12th Grade</option>
-                            <option>College</option>
-                        </select>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Field of Study</label>
-                        <input type="text" class="form-control"
-                               placeholder="Example: Computer Science">
-                    </div>
-
-                    <button class="btn btn-primary w-100">
-                        Search Scholarships
-                    </button>
-
+                <div class="mb-3">
+                    <label for="state" class="form-label">State</label>
+                    <select id="state" class="form-select">
+                        <option value="">Select State</option>
+                        <option value="MN">Minnesota</option>
+                        <option value="WI">Wisconsin</option>
+                        <option value="IA">Iowa</option>
+                        <option value="National">National</option>
+                    </select>
                 </div>
+
+                <div class="mb-3">
+                    <label for="grade" class="form-label">Grade Level</label>
+                    <select id="grade" class="form-select">
+                        <option value="">Select Grade</option>
+                        <option value="6">6th Grade</option>
+                        <option value="7">7th Grade</option>
+                        <option value="8">8th Grade</option>
+                        <option value="9">9th Grade</option>
+                        <option value="10">10th Grade</option>
+                        <option value="11">11th Grade</option>
+                        <option value="12">12th Grade</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label for="field" class="form-label">Field of Study</label>
+                    <input type="text" id="field" class="form-control"
+                           placeholder="Example: Computer Science">
+                </div>
+
+                <button type="button" class="btn btn-primary w-100">
+                    Search Scholarships
+                </button>
+
             </div>
         </div>
-    </main>
+    </div>
+</main>
 
-    <!-- Footer -->
-    <footer class="bg-dark text-white text-center p-3 mt-5">
-        <p class="mb-0">Pathways to Scholarships - ICS 325 Final Project</p>
-    </footer>
-
-</body>
-
-</html>
+<?php
+// Load the shared footer
+include 'includes/footer.php';
+?>
