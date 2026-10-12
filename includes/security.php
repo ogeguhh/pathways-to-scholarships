@@ -1,0 +1,39 @@
+<?php
+declare(strict_types=1);
+
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+
+/** Escape untrusted content before inserting it into HTML. */
+function e(mixed $value): string
+{
+    return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
+/** Create or reuse a session-bound CSRF token. */
+function csrf_token(): string
+{
+    if (!isset($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+/** Verify a token supplied by a submitted form. */
+function verify_csrf(mixed $submitted): bool
+{
+    return is_string($submitted) && hash_equals(csrf_token(), $submitted);
+}
+
+/** Authentication placeholder. Replace when the team's login is implemented. */
+function current_user_id(): ?int
+{
+    return null;
+}
+
+/** Fail closed until the team's real role authorization is implemented. */
+function require_role(string $role): void
+{
+    throw new LogicException('Role authorization is not implemented yet.');
+}
