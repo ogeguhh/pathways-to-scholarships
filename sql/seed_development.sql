@@ -4,50 +4,45 @@
 -- Iteration 2 - Development Seed Data
 -- ============================================
 
--- Purpose:
--- Create a placeholder Administrator user
--- for local development and testing.
---
--- IMPORTANT:
--- This is development data only.
--- Do not use this account in production.
+-- Development-only placeholder Administrator.
+-- Not for production use.
 
--- 1. Generate a secure password hash
--- for the temporary password: password
-
-SET @dev_password_hash = SHA2('password', 256);
-
--- 2. Get the Administrator role ID
-
-SET @admin_role_id = (
-    SELECT role_id
-    FROM roles
-    WHERE role_name = 'Administrator'
-    LIMIT 1
-);
-
--- 3. Insert placeholder development user
--- Prevent duplicate users based on email.
+-- Password: password
+-- Hash generated using PHP's password_hash()
+-- with bcrypt.
 
 INSERT INTO users (
-    full_name,
+    role_id,
     email,
     password_hash,
-    role_id
+    first_name,
+    last_name,
+    account_status
 )
 SELECT
-    'Development Admin',
+    r.role_id,
     'admin@example.test',
-    @dev_password_hash,
-    @admin_role_id
-WHERE NOT EXISTS (
+    '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.',
+    'Development',
+    'Admin',
+    'active'
+FROM roles AS r
+WHERE r.role_name = 'Administrator'
+AND NOT EXISTS (
     SELECT 1
     FROM users
     WHERE email = 'admin@example.test'
 );
 
--- 4. Verify the development user
+-- Verify the inserted development account.
 
-SELECT *
-FROM users
-WHERE email = 'admin@example.test';
+SELECT
+    u.user_id,
+    u.email,
+    u.first_name,
+    u.last_name,
+    u.account_status,
+    r.role_name
+FROM users AS u
+JOIN roles AS r ON u.role_id = r.role_id
+WHERE u.email = 'admin@example.test';
