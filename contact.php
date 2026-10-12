@@ -1,5 +1,8 @@
 
 <?php
+// Load security functions
+require_once __DIR__ . '/includes/security.php';
+
 // Set the page title
 $pageTitle = "Contact - Pathways to Scholarships";
 
@@ -19,8 +22,14 @@ require_once 'includes/nav.php';
 
     <div class="row">
         <div class="col-md-8">
+
             <form method="POST" action="contact.php">
 
+                <!-- CSRF protection -->
+                <input type="hidden" name="csrf_token"
+                       value="<?= escape(csrf_token()) ?>">
+
+                <!-- Name -->
                 <div class="mb-3">
                     <label for="name" class="form-label">Name</label>
                     <input type="text" class="form-control"
@@ -28,6 +37,7 @@ require_once 'includes/nav.php';
                            maxlength="100" required>
                 </div>
 
+                <!-- Email -->
                 <div class="mb-3">
                     <label for="email" class="form-label">Email</label>
                     <input type="email" class="form-control"
@@ -35,6 +45,15 @@ require_once 'includes/nav.php';
                            maxlength="255" required>
                 </div>
 
+                <!-- Subject -->
+                <div class="mb-3">
+                    <label for="subject" class="form-label">Subject</label>
+                    <input type="text" class="form-control"
+                           id="subject" name="subject"
+                           maxlength="255" required>
+                </div>
+
+                <!-- Message -->
                 <div class="mb-3">
                     <label for="message" class="form-label">Message</label>
                     <textarea class="form-control"
@@ -43,11 +62,13 @@ require_once 'includes/nav.php';
                               required></textarea>
                 </div>
 
+                <!-- Submit button -->
                 <button type="submit" class="btn btn-primary">
                     Send Message
                 </button>
 
             </form>
+
         </div>
     </div>
 </main>
