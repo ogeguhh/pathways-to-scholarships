@@ -14,3 +14,6 @@
 # Temporary files
 *.tmp
 *.temp
+
+# Local database configuration
+/includes/config.php
