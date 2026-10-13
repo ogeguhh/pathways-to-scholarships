@@ -25,3 +25,14 @@ function verify_csrf($token) {
         && isset($_SESSION['csrf_token'])
         && hash_equals($_SESSION['csrf_token'], $token);
 }
+
+// Temporary user ID for development
+function current_user_id() {
+    return $_SESSION['user_id'] ?? null;
+}
+
+// Temporary role check for development
+function require_role($role) {
+    // Real role checking will be added in Iteration 7
+    return true;
+}
