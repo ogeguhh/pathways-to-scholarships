@@ -3,6 +3,7 @@
 
 # Environment/config files
 .env
+/includes/db.php
 
 # IDE files
 .vscode/

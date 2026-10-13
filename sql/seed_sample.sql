@@ -211,7 +211,34 @@ AND NOT EXISTS (
         'https://example.com/demo-stem-scholarship'
 );
 
--- 5. Verify inserted sample data
+-- 5. Link demo awards to high-school grades so grade searches return them.
+
+INSERT IGNORE INTO scholarship_grades (
+    scholarship_id,
+    grade_id
+)
+SELECT
+    sc.scholarship_id,
+    gl.grade_id
+FROM scholarships AS sc
+JOIN grade_levels AS gl ON gl.grade_level BETWEEN 9 AND 12
+WHERE sc.scholarship_name LIKE 'DEMO %'
+  AND sc.school_level IN ('High School', 'Both');
+
+-- 6. Link the STEM demo award to its field of study.
+
+INSERT IGNORE INTO scholarship_fields (
+    scholarship_id,
+    field_id
+)
+SELECT
+    sc.scholarship_id,
+    fs.field_id
+FROM scholarships AS sc
+JOIN fields_of_study AS fs ON fs.field_name = 'STEM'
+WHERE sc.scholarship_name = 'DEMO National STEM Achievement Scholarship';
+
+-- 7. Verify inserted sample data
 
 SELECT
     sc.scholarship_id,
@@ -228,4 +255,3 @@ LEFT JOIN states AS st
     ON sc.state_id = st.state_id
 WHERE sc.scholarship_name LIKE 'DEMO %'
 ORDER BY sc.scholarship_id;
-

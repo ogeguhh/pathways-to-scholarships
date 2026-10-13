@@ -33,9 +33,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Contact | Pathways to Scholarships</title></head><body>
-<nav><a href="index.php">Home</a> | <a href="about.php">About</a> | <a href="faq.php">FAQ</a> | <a href="contact.php">Contact</a> | <a href="scholarships.php">Scholarships</a></nav>
-<main><h1>Contact Us</h1>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Contact | Pathways to Scholarships</title><link href="assets/css/site.css" rel="stylesheet"></head><body>
+<nav class="site-nav"><a href="index.php">Pathways to Scholarships</a> | <a href="index.php">Home</a> | <a href="about.php">About</a> | <a href="faq.php">FAQ</a> | <a href="contact.php">Contact</a> | <a href="scholarships.php">Scholarships</a></nav>
+<main class="site-main"><h1>Contact Us</h1>
 <?php if ($success): ?><p role="status">Your message was saved successfully.</p><?php endif; ?>
 <?php foreach ($errors as $error): ?><p role="alert"><?= e($error) ?></p><?php endforeach; ?>
 <form method="post" action="contact.php">
@@ -44,4 +44,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <p><label for="email">Email</label><br><input id="email" name="email" type="email" maxlength="254" required value="<?= e($email) ?>"></p>
 <p><label for="message">Message</label><br><textarea id="message" name="message" maxlength="5000" required><?= e($message) ?></textarea></p>
 <button type="submit">Send message</button>
-</form></main></body></html>
+</form></main><footer class="site-footer"><p>Pathways to Scholarships - ICS 325 Final Project</p></footer></body></html>

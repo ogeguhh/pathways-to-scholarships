@@ -1,0 +1,87 @@
+body {
+    background: #fff;
+    color: #212529;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.site-nav {
+    background-color: #212529;
+    color: #fff;
+}
+
+.site-nav a {
+    color: rgba(255, 255, 255, 0.85);
+    text-decoration: none;
+}
+
+.site-nav a:hover,
+.site-nav a:focus {
+    color: #fff;
+    text-decoration: underline;
+}
+
+.site-nav .navbar-brand {
+    color: #fff;
+}
+
+.site-main {
+    width: min(100% - 2rem, 960px);
+    margin: 3rem auto;
+    line-height: 1.6;
+}
+
+.site-main h1,
+.site-main h2 {
+    color: #212529;
+}
+
+.site-main h1 {
+    margin-bottom: 1.5rem;
+}
+
+.site-main form {
+    max-width: 680px;
+}
+
+.site-main input,
+.site-main textarea,
+.site-main select {
+    max-width: 100%;
+}
+
+.site-main textarea {
+    min-height: 9rem;
+    width: 100%;
+}
+
+.site-main table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.site-main th,
+.site-main td {
+    border: 1px solid #dee2e6;
+    padding: 0.75rem;
+    text-align: left;
+}
+
+.site-main th {
+    background: #f8f9fa;
+}
+
+.site-main tr:nth-child(even) {
+    background: #f8f9fa;
+}
+
+.site-footer {
+    background-color: #212529;
+    color: #fff;
+    margin-top: 3rem;
+    padding: 1rem;
+    text-align: center;
+}
+
+.site-footer p {
+    margin: 0;
+}
