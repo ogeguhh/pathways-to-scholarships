@@ -32,8 +32,32 @@ function current_user_id(): ?int
     return null;
 }
 
+/** Authorization placeholder. Replace when the team's role checks are implemented. */
+function has_role(string $role): bool
+{
+    return false;
+}
+
+function is_admin(): bool
+{
+    return has_role('Administrator') || has_role('Super-admin');
+}
+
+/** Require administrator access while keeping the unfinished auth system fail-closed. */
+function require_admin_access(): void
+{
+    if (is_admin()) {
+        return;
+    }
+
+    http_response_code(403);
+    exit('Administrator access is unavailable until application authorization is implemented.');
+}
+
 /** Fail closed until the team's real role authorization is implemented. */
 function require_role(string $role): void
 {
-    throw new LogicException('Role authorization is not implemented yet.');
+    if (!has_role($role)) {
+        throw new LogicException('Role authorization is not implemented yet.');
+    }
 }

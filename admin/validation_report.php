@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/../includes/security.php';
-require_role('Administrator');
+require_admin_access();
 require_once __DIR__ . '/../includes/db.php';
 if (!isset($pdo) || !($pdo instanceof PDO)) throw new RuntimeException('db.php must define $pdo.');
 $batchId = filter_input(INPUT_GET, 'batch_id', FILTER_VALIDATE_INT);

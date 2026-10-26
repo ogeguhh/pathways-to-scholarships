@@ -243,7 +243,7 @@ function import_check_headers(array $actual): void {
     );
 
     if ($actual !== $expected) {
-        throw new RuntimeException(
+        throw new InvalidArgumentException(
             'The 29 column headers must match the downloadable template exactly and in order.'
         );
     }

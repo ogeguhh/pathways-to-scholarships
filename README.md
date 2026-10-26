@@ -1,29 +1,47 @@
 # Pathways to Scholarships
 
-An ICS 325 project that helps students and families discover scholarship opportunities.
+An ICS 325 team project designed to help students and families discover scholarship opportunities through an accessible, organized, and user-friendly web application.
 
-## Features
+## Project Features
 
-- Search active scholarships by state, grade level, and field of study.
-- View scholarship providers, locations, award ranges, and application deadlines.
-- Read project information and FAQs, or send a message through the contact form.
-- Browse a small set of fictional demo scholarships for local development.
+The project includes the following features:
 
-## Run locally
+- Scholarship searching and filtering by state, grade level, and field of study.
+- Scholarship information displaying providers, locations, award ranges, and application deadlines.
+- About, FAQ, and Contact pages to provide project information, answer common questions, and support user inquiries.
+- Fictional demonstration scholarships for local development and testing.
 
-You need PHP with the PDO MySQL extension and a MySQL-compatible database such as MySQL or MariaDB. The app expects a local, uncommitted `includes/db.php` file that connects to the database and defines a PDO variable named `$pdo`.
+## Recent Development Updates
 
-1. Create the database by running [`sql/schema_v1.sql`](sql/schema_v1.sql).
-2. Load the development data in order: [`sql/seed_reference.sql`](sql/seed_reference.sql), [`sql/seed_development.sql`](sql/seed_development.sql), then [`sql/seed_sample.sql`](sql/seed_sample.sql).
-3. Configure `includes/db.php` for your local database. Do not commit database credentials.
-4. Serve the project with Apache, or from the repository root run:
+The following components have been added to the project:
 
-   ```sh
-   php -S 127.0.0.1:8000
-   ```
+- **Database Structure:** MySQL database schema established through `sql/schema_v1.sql`.
+- **Reference Data:** Seed scripts added for scholarship categories, locations, grade levels, and other reference information.
+- **Development Data:** Sample scholarships and a placeholder development account included for testing.
+- **Backend Integration:** PHP backend structure using PDO for MySQL database connectivity.
+- **Security Structure:** Shared PHP includes organized to support secure database access and application functionality.
+- **Informational Pages:** About, FAQ, and Contact functionality incorporated into the application.
+- **Local Development:** Project configured for testing through Apache or PHP's built-in development server.
 
-5. Open [http://127.0.0.1:8000](http://127.0.0.1:8000).
+## Project Structure and Configuration
 
-See [`SETUP.md`](SETUP.md) for more setup and testing details.
+The application uses PHP, MySQL, HTML, CSS, and JavaScript.
 
-> **Demo data:** The `DEMO` scholarships and development account are fictional and intended for local testing only. They are not real scholarship opportunities or production credentials.
+Database initialization and development data are organized into the following SQL files:
+
+- `sql/schema_v1.sql`
+- `sql/seed_reference.sql`
+- `sql/seed_development.sql`
+- `sql/seed_sample.sql`
+
+Database connectivity is managed locally through `includes/db.php`, using PDO. Database credentials are excluded from version control to maintain security.
+
+The project supports local development through Apache or PHP's built-in server at `http://127.0.0.1:8000`.
+
+Additional configuration and testing documentation is available in `SETUP.md`.
+
+## Development Status
+
+The project has progressed through its initial database setup, sample data preparation, backend organization, and informational page development. These components establish the foundation for continued integration, feature testing, and collaborative development.
+
+**Note:** All `DEMO` scholarships and development accounts are fictional and used exclusively for local testing. They do not represent real scholarship opportunities or production credentials.
