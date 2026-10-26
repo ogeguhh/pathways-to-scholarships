@@ -1,3 +1,7 @@
+<?php
+declare(strict_types=1);
+require_once __DIR__ . '/includes/security.php';
+?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -26,6 +30,10 @@
                 <a class="nav-link" href="faq.php">FAQ</a>
                 <a class="nav-link" href="contact.php">Contact</a>
                 <a class="nav-link" href="#">Login</a>
+                <?php if (is_admin()): ?>
+                    <a class="nav-link" href="admin/providers.php">Manage Providers</a>
+                    <a class="nav-link" href="admin/audit_log.php">Audit Log</a>
+                <?php endif; ?>
             </div>
         </div>
     </nav>
