@@ -486,6 +486,25 @@ function commitScholarshipBatch(int $batchId): int
 
         $updateStmt->execute([$batchId]);
 
+        // Record the successful import in the same transaction.
+        $auditStmt = $pdo->prepare(
+            'INSERT INTO audit_log
+                (user_id, action, entity_type, entity_id, details)
+             VALUES (?, ?, ?, ?, ?)'
+        );
+
+        $auditStmt->execute([
+            null,
+            'import',
+            'import_batch',
+            $batchId,
+            json_encode([
+                'import_batch_id' => $batchId,
+                'scholarships_imported' => $committed,
+                'development_mode' => true
+            ], JSON_THROW_ON_ERROR)
+        ]);
+
         $pdo->commit();
 
         return $committed;
@@ -572,6 +591,25 @@ function rollbackScholarshipBatch(int $batchId): int
         );
 
         $updateStmt->execute([$batchId]);
+
+        // Record the successful rollback before committing.
+        $auditStmt = $pdo->prepare(
+            'INSERT INTO audit_log
+                (user_id, action, entity_type, entity_id, details)
+             VALUES (?, ?, ?, ?, ?)'
+        );
+
+        $auditStmt->execute([
+            null,
+            'rollback',
+            'import_batch',
+            $batchId,
+            json_encode([
+                'import_batch_id' => $batchId,
+                'scholarships_removed' => $deletedCount,
+                'development_mode' => true
+            ], JSON_THROW_ON_ERROR)
+        ]);
 
         $pdo->commit();
 
