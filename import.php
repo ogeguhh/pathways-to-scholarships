@@ -53,8 +53,12 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
                             $stmt=$pdo->prepare("INSERT INTO import_batches (uploaded_by,file_name,contributing_student,batch_status,total_rows,ready_rows,warning_rows,duplicate_rows,error_rows) VALUES (NULL,?,?, 'staged',?,0,0,0,0)");
                             $stmt->execute([$name,$student,$count]);
                             $batchId=(int)$pdo->lastInsertId();
-                            $stmt=$pdo->prepare("INSERT INTO import_staging_rows (import_batch_id,row_number,raw_data,validation_status,validation_message) VALUES (?,?,?,'Pending','Awaiting cleaning and validation')");
-                            $line=1;
+                            // Backticks allow MySQL to recognize row_number as a column name.
+                            $stmt = $pdo->prepare(
+                                "INSERT INTO import_staging_rows
+                                (import_batch_id, `row_number`, raw_data, validation_status, validation_message)
+                                VALUES (?, ?, ?, 'Pending', 'Awaiting cleaning and validation')"
+                            );                            $line=1;
                             foreach ($rows as $row) {
                                 $line++;
                                 if (count(array_filter($row,fn($v)=>trim((string)$v)!==''))===0) continue;
