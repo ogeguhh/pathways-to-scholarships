@@ -210,6 +210,11 @@ require_once $projectRoot . '/includes/dev_banner.php';
                         </td>
 
                         <td>
+                            <a href="/admin/scholarship_view.php?id=<?= (int) $scholarship['scholarship_id'] ?>"
+                               class="btn btn-sm btn-outline-info">
+                                View
+                            </a>
+
                             <a href="/admin/scholarship_form.php?id=<?= (int) $scholarship['scholarship_id'] ?>"
                                class="btn btn-sm btn-outline-primary">
                                 Edit
