@@ -54,3 +54,24 @@ The application also tracks:
 - The official scholarship URL is required.
 - Duplicate scholarships are identified using the normalized official URL.
 - The application must preserve all template fields during import and export.
+
+## Official Data Science Excel Template
+
+Source: scholarships_data_collection_template.xlsx
+Worksheet: Sheet2
+Number of columns: 29
+
+The official template uses the following exact headers for fields
+that have additional wording:
+
+- Number of awards (if known)
+- Renewable (Yes/No/Unknown)
+- Application open date (if known)
+- Minimum GPA (if any)
+- Financial need required (Yes/No/Unknown)
+
+During Iteration 3, import and export must use the exact
+official Excel column headers, not shortened field labels.
+
+The template also includes a "Sources & Notes" worksheet
+with guidance and sample scholarship information.
