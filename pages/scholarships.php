@@ -25,6 +25,7 @@ $scholarships = [];
 $states = [];
 $grades = [];
 $fields = [];
+$categories = [];
 $errorMessage = '';
 
 // Read the selected search filters from the URL.
@@ -40,6 +41,46 @@ $fieldId = $fieldId ?: null;
 // Read an optional keyword from the search form.
 $keyword = trim((string) ($_GET['keyword'] ?? ''));
 $keyword = mb_substr($keyword, 0, 150);
+
+// Read the additional filters and validate their values.
+$categoryId = filter_input(INPUT_GET, 'category_id', FILTER_VALIDATE_INT);
+$categoryId = $categoryId ?: null;
+
+$awardMin = filter_input(INPUT_GET, 'award_min', FILTER_VALIDATE_FLOAT);
+$awardMax = filter_input(INPUT_GET, 'award_max', FILTER_VALIDATE_FLOAT);
+
+$awardMin = $awardMin !== false && $awardMin !== null && $awardMin >= 0
+    ? $awardMin : null;
+$awardMax = $awardMax !== false && $awardMax !== null && $awardMax >= 0
+    ? $awardMax : null;
+
+// Only accept dates in YYYY-MM-DD format that represent real dates.
+function validSearchDate(mixed $value): ?string
+{
+    if (!is_string($value)) {
+        return null;
+    }
+
+    $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+
+    return $date && $date->format('Y-m-d') === $value
+        ? $value : null;
+}
+
+$deadlineFrom = validSearchDate($_GET['deadline_from'] ?? null);
+$deadlineTo = validSearchDate($_GET['deadline_to'] ?? null);
+
+$yesNoFilters = [];
+
+foreach (['renewable', 'essay_required', 'financial_need_required'] as $name) {
+    $value = $_GET[$name] ?? '';
+
+    $yesNoFilters[$name] = is_string($value)
+        && in_array($value, ['Yes', 'No', 'Unknown'], true)
+        ? $value : null;
+}
+
+$showExpired = ($_GET['show_expired'] ?? '') === '1';
 
 try {
     $pdo = getDBConnection();
@@ -90,6 +131,13 @@ try {
          ORDER BY field_name'
     )->fetchAll();
 
+    // Load category options for the additional filter dropdown.
+    $categories = $pdo->query(
+        'SELECT category_id, category_name
+         FROM categories
+         ORDER BY category_name'
+    )->fetchAll();
+
     // Build the search using fixed SQL conditions and bound values.
     $sql = '
         SELECT
@@ -108,11 +156,17 @@ try {
         LEFT JOIN states st
           ON st.state_id = s.state_id
         WHERE s.status = :status
-          AND (
-              s.application_deadline IS NULL
-              OR s.application_deadline >= CURRENT_DATE()
-          )
     ';
+
+    // Expired scholarships remain hidden unless explicitly requested.
+    if (!$showExpired) {
+        $sql .= '
+            AND (
+                s.application_deadline IS NULL
+                OR s.application_deadline >= CURRENT_DATE()
+            )
+        ';
+    }
 
     $parameters = [
         ':status' => 'active'
@@ -157,6 +211,50 @@ try {
         ';
 
         $parameters[':field_id'] = $fieldId;
+    }
+
+    // Match award ranges against the scholarship's reported award.
+    if ($awardMin !== null) {
+        $sql .= ' AND s.award_amount_max >= :award_min';
+        $parameters[':award_min'] = $awardMin;
+    }
+
+    if ($awardMax !== null) {
+        $sql .= ' AND s.award_amount_min <= :award_max';
+        $parameters[':award_max'] = $awardMax;
+    }
+
+    // Restrict results to the selected application deadline range.
+    if ($deadlineFrom !== null) {
+        $sql .= ' AND s.application_deadline >= :deadline_from';
+        $parameters[':deadline_from'] = $deadlineFrom;
+    }
+
+    if ($deadlineTo !== null) {
+        $sql .= ' AND s.application_deadline <= :deadline_to';
+        $parameters[':deadline_to'] = $deadlineTo;
+    }
+
+    // EXISTS avoids duplicate results for scholarships with many categories.
+    if ($categoryId !== null) {
+        $sql .= '
+            AND EXISTS (
+                SELECT 1
+                FROM scholarship_categories sc
+                WHERE sc.scholarship_id = s.scholarship_id
+                  AND sc.category_id = :category_id
+            )
+        ';
+        $parameters[':category_id'] = $categoryId;
+    }
+
+    // Column names come only from this fixed list, never from user input.
+    foreach ($yesNoFilters as $column => $value) {
+        if ($value !== null) {
+            $parameter = ':' . $column;
+            $sql .= " AND s.$column = $parameter";
+            $parameters[$parameter] = $value;
+        }
     }
 
     // Search scholarship names, providers, and descriptions.
@@ -311,6 +409,121 @@ require_once $projectRoot . '/includes/dev_banner.php';
                     </option>
                 <?php endforeach; ?>
             </select>
+        </div>
+
+        <!-- Additional scholarship filters required by FR-SRCH-02. -->
+        <div class="col-md-6">
+            <label for="award_min" class="form-label">
+                Minimum Award ($)
+            </label>
+            <input type="number"
+                   name="award_min"
+                   id="award_min"
+                   class="form-control"
+                   min="0"
+                   step="0.01"
+                   value="<?= e((string) ($_GET['award_min'] ?? '')) ?>">
+        </div>
+
+        <div class="col-md-6">
+            <label for="award_max" class="form-label">
+                Maximum Award ($)
+            </label>
+            <input type="number"
+                   name="award_max"
+                   id="award_max"
+                   class="form-control"
+                   min="0"
+                   step="0.01"
+                   value="<?= e((string) ($_GET['award_max'] ?? '')) ?>">
+        </div>
+
+        <div class="col-md-6">
+            <label for="deadline_from" class="form-label">
+                Deadline From
+            </label>
+            <input type="date"
+                   name="deadline_from"
+                   id="deadline_from"
+                   class="form-control"
+                   value="<?= e((string) ($_GET['deadline_from'] ?? '')) ?>">
+        </div>
+
+        <div class="col-md-6">
+            <label for="deadline_to" class="form-label">
+                Deadline To
+            </label>
+            <input type="date"
+                   name="deadline_to"
+                   id="deadline_to"
+                   class="form-control"
+                   value="<?= e((string) ($_GET['deadline_to'] ?? '')) ?>">
+        </div>
+
+        <div class="col-md-4">
+            <label for="category_id" class="form-label">
+                Scholarship Category
+            </label>
+            <select name="category_id"
+                    id="category_id"
+                    class="form-select">
+                <option value="">All Categories</option>
+
+                <?php foreach ($categories as $category): ?>
+                    <option value="<?= (int) $category['category_id'] ?>"
+                        <?= $categoryId === (int) $category['category_id']
+                            ? 'selected' : '' ?>>
+                        <?= e($category['category_name']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <?php
+        // Each Yes/No filter uses the same three choices.
+        $yesNoFilters = [
+            'renewable' => 'Renewable',
+            'essay_required' => 'Essay Required',
+            'financial_need_required' => 'Financial Need Required'
+        ];
+        ?>
+
+        <?php foreach ($yesNoFilters as $filterName => $filterLabel): ?>
+            <div class="col-md-4">
+                <label for="<?= e($filterName) ?>" class="form-label">
+                    <?= e($filterLabel) ?>
+                </label>
+
+                <select name="<?= e($filterName) ?>"
+                        id="<?= e($filterName) ?>"
+                        class="form-select">
+                    <option value="">Any</option>
+                    <option value="Yes"
+                        <?= ($_GET[$filterName] ?? '') === 'Yes'
+                            ? 'selected' : '' ?>>Yes</option>
+                    <option value="No"
+                        <?= ($_GET[$filterName] ?? '') === 'No'
+                            ? 'selected' : '' ?>>No</option>
+                    <option value="Unknown"
+                        <?= ($_GET[$filterName] ?? '') === 'Unknown'
+                            ? 'selected' : '' ?>>Unknown</option>
+                </select>
+            </div>
+        <?php endforeach; ?>
+
+        <div class="col-12">
+            <div class="form-check">
+                <input type="checkbox"
+                       name="show_expired"
+                       id="show_expired"
+                       value="1"
+                       class="form-check-input"
+                       <?= ($_GET['show_expired'] ?? '') === '1'
+                           ? 'checked' : '' ?>>
+                <label for="show_expired" class="form-check-label">
+                    Include Expired Scholarships
+                </label>
+            </div>
         </div>
 
         <div class="col-12">
