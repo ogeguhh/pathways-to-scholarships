@@ -45,6 +45,13 @@ $currentPage = basename(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH))
                 </li>
 
                 <li class="nav-item">
+                    <a class="nav-link <?= $currentPage === 'scholarship_facts.php' ? 'active' : '' ?>"
+                       href="/pages/scholarship_facts.php">
+                        Scholarship Facts
+                    </a>
+                </li>
+
+                <li class="nav-item">
                     <a class="nav-link <?= $currentPage === 'about.php' ? 'active' : '' ?>"
                        href="/pages/about.php">
                         About
