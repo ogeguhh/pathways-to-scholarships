@@ -3,7 +3,6 @@
 
 # Local database configuration
 includes/config.php
-includes/db.php
 .env
 
 # Editor settings
