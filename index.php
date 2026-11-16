@@ -11,6 +11,31 @@ declare(strict_types=1);
  * Scholarship searching will be implemented in Iteration 5.
  */
 
+// Load the database and escaping helper for the quick search.
+require_once __DIR__ . '/includes/db.php';
+require_once __DIR__ . '/includes/security.php';
+
+// Load the same filter options used by the scholarship search page.
+$pdo = getDBConnection();
+
+$states = $pdo->query(
+    'SELECT state_id, state_name
+     FROM states
+     ORDER BY state_name'
+)->fetchAll();
+
+$grades = $pdo->query(
+    'SELECT grade_id, grade_number
+     FROM grade_levels
+     ORDER BY grade_number'
+)->fetchAll();
+
+$fields = $pdo->query(
+    'SELECT field_id, field_name
+     FROM fields_of_study
+     ORDER BY field_name'
+)->fetchAll();
+
 // Set the browser title before loading the shared header.
 $pageTitle = 'Home | Pathways to Scholarships';
 
@@ -33,61 +58,76 @@ require_once __DIR__ . '/includes/dev_banner.php';
 </header>
 
 <main>
-    <!-- Search form remains inactive until Iteration 5. -->
+    <!-- Homepage quick search connected to Iteration 5. -->
     <section id="search" class="container py-5">
         <h2 class="h3 text-center mb-4">Search Scholarships</h2>
 
-        <form>
+        <form action="/pages/scholarships.php" method="get">
+            <input type="hidden" name="search" value="1">
             <div class="row g-3">
 
                 <div class="col-md-4">
-                    <label for="state" class="form-label">State</label>
+                    <label for="state_id" class="form-label">State</label>
 
-                    <select id="state" class="form-select">
-                        <option selected>Select State</option>
-                        <option>National</option>
-                        <option>Minnesota</option>
-                        <option>Tennessee</option>
+                    <select id="state_id"
+                            name="state_id"
+                            class="form-select">
+
+                        <option value="">All States</option>
+
+                        <?php foreach ($states as $state): ?>
+                            <option value="<?= (int) $state['state_id'] ?>">
+                                <?= e($state['state_name']) ?>
+                            </option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
 
                 <div class="col-md-4">
-                    <label for="grade" class="form-label">Grade Level</label>
+                    <label for="grade_id" class="form-label">
+                        Grade Level
+                    </label>
 
-                    <select id="grade" class="form-select">
-                        <option selected>Select Grade</option>
+                    <select id="grade_id"
+                            name="grade_id"
+                            class="form-select">
 
-                        <?php for ($grade = 6; $grade <= 12; $grade++): ?>
-                            <option><?= $grade ?></option>
-                        <?php endfor; ?>
+                        <option value="">All Grades</option>
+
+                        <?php foreach ($grades as $grade): ?>
+                            <option value="<?= (int) $grade['grade_id'] ?>">
+                                Grade <?= (int) $grade['grade_number'] ?>
+                            </option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
 
                 <div class="col-md-4">
-                    <label for="field" class="form-label">Field of Study</label>
+                    <label for="field_id" class="form-label">
+                        Field of Study
+                    </label>
 
-                    <select id="field" class="form-select">
-                        <option selected>Select Field</option>
-                        <option>STEM</option>
-                        <option>Arts</option>
-                        <option>General</option>
+                    <select id="field_id"
+                            name="field_id"
+                            class="form-select">
+
+                        <option value="">All Fields</option>
+
+                        <?php foreach ($fields as $field): ?>
+                            <option value="<?= (int) $field['field_id'] ?>">
+                                <?= e($field['field_name']) ?>
+                            </option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
 
             </div>
 
             <div class="text-center mt-4">
-                <button
-                    type="button"
-                    class="btn btn-primary btn-lg"
-                    disabled
-                >
+                <button type="submit"
+                        class="btn btn-primary btn-lg">
                     Search Scholarships
                 </button>
-
-                <p class="text-muted small mt-2">
-                    Search functionality is coming in a later iteration.
-                </p>
             </div>
         </form>
     </section>

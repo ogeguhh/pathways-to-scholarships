@@ -3,27 +3,97 @@ declare(strict_types=1);
 
 /*
  * Pathways to Scholarships
- * Iteration 2 — Read-Only Scholarship List
+ * Iteration 5 — Scholarship Search
  *
- * Retrieves scholarship records from MySQL.
- * Search filters will be implemented in Iteration 5.
+ * Search active scholarships using state, grade level,
+ * and field of study. AJAX will be added later.
  */
+
+// Sessions let us recognize a previously logged search.
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 $projectRoot = dirname(__DIR__);
 
 require_once $projectRoot . '/includes/db.php';
 require_once $projectRoot . '/includes/security.php';
 
-$pageTitle = 'Scholarships | Pathways to Scholarships';
+$pageTitle = 'Scholarship Search | Pathways to Scholarships';
+
 $scholarships = [];
+$states = [];
+$grades = [];
+$fields = [];
 $errorMessage = '';
 
-// Retrieve active scholarships using a PDO prepared statement.
+// Read the selected search filters from the URL.
+// Empty values mean the visitor has not restricted that filter.
+$stateId = filter_input(INPUT_GET, 'state_id', FILTER_VALIDATE_INT);
+$gradeId = filter_input(INPUT_GET, 'grade_id', FILTER_VALIDATE_INT);
+$fieldId = filter_input(INPUT_GET, 'field_id', FILTER_VALIDATE_INT);
+
+$stateId = $stateId ?: null;
+$gradeId = $gradeId ?: null;
+$fieldId = $fieldId ?: null;
+
+// Read an optional keyword from the search form.
+$keyword = trim((string) ($_GET['keyword'] ?? ''));
+$keyword = mb_substr($keyword, 0, 150);
+
 try {
     $pdo = getDBConnection();
 
-    $stmt = $pdo->prepare(
-        'SELECT
+    // Log a submitted search once per unique filter combination
+    // during this visitor's session.
+    if (($_GET['search'] ?? '') === '1') {
+        $searchKey = hash('sha256', json_encode([
+            $stateId,
+            $gradeId,
+            $fieldId,
+            $keyword
+        ]));
+
+        if (($_SESSION['last_logged_search'] ?? '') !== $searchKey) {
+            $logStmt = $pdo->prepare(
+                'INSERT INTO search_log
+                    (state_filter, grade_filter, field_filter)
+                 VALUES (?, ?, ?)'
+            );
+
+            $logStmt->execute([
+                $stateId !== null ? (string) $stateId : null,
+                $gradeId !== null ? (string) $gradeId : null,
+                $fieldId !== null ? (string) $fieldId : null
+            ]);
+
+            $_SESSION['last_logged_search'] = $searchKey;
+        }
+    }
+
+    // Load the options for the three required search filters.
+    $states = $pdo->query(
+        'SELECT state_id, state_name
+         FROM states
+         ORDER BY state_name'
+    )->fetchAll();
+
+    $grades = $pdo->query(
+        'SELECT grade_id, grade_number
+         FROM grade_levels
+         ORDER BY grade_number'
+    )->fetchAll();
+
+    $fields = $pdo->query(
+        'SELECT field_id, field_name
+         FROM fields_of_study
+         ORDER BY field_name'
+    )->fetchAll();
+
+    // Build the search using fixed SQL conditions and bound values.
+    $sql = '
+        SELECT
+            s.scholarship_id,
             s.scholarship_name,
             s.official_url,
             s.national_or_state_local,
@@ -32,19 +102,138 @@ try {
             s.notes,
             p.provider_name,
             st.state_name
-         FROM scholarships s
-         JOIN providers p ON s.provider_id = p.provider_id
-         LEFT JOIN states st ON s.state_id = st.state_id
-         WHERE s.status = :status
-         ORDER BY s.application_deadline ASC'
-    );
+        FROM scholarships s
+        JOIN providers p
+          ON p.provider_id = s.provider_id
+        LEFT JOIN states st
+          ON st.state_id = s.state_id
+        WHERE s.status = :status
+          AND (
+              s.application_deadline IS NULL
+              OR s.application_deadline >= CURRENT_DATE()
+          )
+    ';
 
-    $stmt->execute([':status' => 'active']);
+    $parameters = [
+        ':status' => 'active'
+    ];
+
+    // National scholarships are eligible for the selected state
+    // alongside scholarships associated with that state.
+    if ($stateId !== null) {
+        $sql .= '
+            AND (
+                s.state_id = :state_id
+                OR s.national_or_state_local = "National"
+            )
+        ';
+
+        $parameters[':state_id'] = $stateId;
+    }
+
+    // EXISTS avoids duplicate scholarship rows when joining
+    // many-to-many grade and field relationships.
+    if ($gradeId !== null) {
+        $sql .= '
+            AND EXISTS (
+                SELECT 1
+                FROM scholarship_grades sg
+                WHERE sg.scholarship_id = s.scholarship_id
+                  AND sg.grade_id = :grade_id
+            )
+        ';
+
+        $parameters[':grade_id'] = $gradeId;
+    }
+
+    if ($fieldId !== null) {
+        $sql .= '
+            AND EXISTS (
+                SELECT 1
+                FROM scholarship_fields sf
+                WHERE sf.scholarship_id = s.scholarship_id
+                  AND sf.field_id = :field_id
+            )
+        ';
+
+        $parameters[':field_id'] = $fieldId;
+    }
+
+    // Search scholarship names, providers, and descriptions.
+    if ($keyword !== '') {
+        $sql .= '
+            AND (
+                s.scholarship_name LIKE :keyword_name
+                OR p.provider_name LIKE :keyword_provider
+                OR s.notes LIKE :keyword_notes
+            )
+        ';
+
+        $searchTerm = '%' . $keyword . '%';
+
+        $parameters[':keyword_name'] = $searchTerm;
+        $parameters[':keyword_provider'] = $searchTerm;
+        $parameters[':keyword_notes'] = $searchTerm;
+    }
+
+    // Only permit predefined sorting choices in SQL.
+    $sortOptions = [
+        'deadline_asc' =>
+            's.application_deadline IS NULL,
+             s.application_deadline ASC, s.scholarship_id ASC',
+        'deadline_desc' =>
+            's.application_deadline IS NULL,
+             s.application_deadline DESC, s.scholarship_id ASC',
+        'name_asc' =>
+            's.scholarship_name ASC, s.scholarship_id ASC',
+        'name_desc' =>
+            's.scholarship_name DESC, s.scholarship_id ASC',
+        'award_desc' =>
+            's.award_amount_max IS NULL,
+             s.award_amount_max DESC, s.scholarship_id ASC',
+        'award_asc' =>
+            's.award_amount_max IS NULL,
+             s.award_amount_max ASC, s.scholarship_id ASC'
+    ];
+
+    $sort = $_GET['sort'] ?? 'deadline_asc';
+
+    if (!is_string($sort) || !isset($sortOptions[$sort])) {
+        $sort = 'deadline_asc';
+    }
+
+    // Count all matching scholarships before applying pagination.
+    $countSql = 'SELECT COUNT(*) FROM (' . $sql . ') AS matches';
+    $countStmt = $pdo->prepare($countSql);
+    $countStmt->execute($parameters);
+
+    $totalResults = (int) $countStmt->fetchColumn();
+
+    $perPage = 10;
+    $totalPages = max(1, (int) ceil($totalResults / $perPage));
+
+    $page = filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT);
+    $page = $page && $page > 0 ? min($page, $totalPages) : 1;
+
+    $offset = ($page - 1) * $perPage;
+
+    $sql .= ' ORDER BY ' . $sortOptions[$sort] . ' LIMIT :limit OFFSET :offset';
+
+    $stmt = $pdo->prepare($sql);
+
+    foreach ($parameters as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+
+    // LIMIT and OFFSET must be bound as integers.
+    $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+
+    $stmt->execute();
     $scholarships = $stmt->fetchAll();
 
-} catch (Throwable $e) {
-    // Log technical errors without exposing them to visitors.
-    error_log('Scholarship list error: ' . $e->getMessage());
+} catch (Throwable $error) {
+    error_log('Scholarship search failed: ' . $error->getMessage());
     $errorMessage = 'Scholarships cannot be loaded right now.';
 }
 
@@ -54,102 +243,338 @@ require_once $projectRoot . '/includes/dev_banner.php';
 ?>
 
 <main class="container py-5">
-    <h1 class="mb-3">Scholarship Opportunities</h1>
+
+    <h1 class="mb-3">Find Scholarships</h1>
 
     <p class="lead">
-        Browse available scholarship records.
-        Search filters will be added in a later iteration.
+        Search scholarships by state, grade level, and field of study.
     </p>
+
+    <form action="/pages/scholarships.php"
+          method="get"
+          class="row g-3 mb-4">
+
+        <input type="hidden" name="search" value="1">
+
+        <div class="col-md-4">
+            <label for="state_id" class="form-label">State</label>
+
+            <select name="state_id"
+                    id="state_id"
+                    class="form-select">
+
+                <option value="">All States</option>
+
+                <?php foreach ($states as $state): ?>
+                    <option value="<?= (int) $state['state_id'] ?>"
+                        <?= $stateId === (int) $state['state_id']
+                            ? 'selected' : '' ?>>
+                        <?= e($state['state_name']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <div class="col-md-4">
+            <label for="grade_id" class="form-label">Grade Level</label>
+
+            <select name="grade_id"
+                    id="grade_id"
+                    class="form-select">
+
+                <option value="">All Grades</option>
+
+                <?php foreach ($grades as $grade): ?>
+                    <option value="<?= (int) $grade['grade_id'] ?>"
+                        <?= $gradeId === (int) $grade['grade_id']
+                            ? 'selected' : '' ?>>
+                        Grade <?= (int) $grade['grade_number'] ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <div class="col-md-4">
+            <label for="field_id" class="form-label">Field of Study</label>
+
+            <select name="field_id"
+                    id="field_id"
+                    class="form-select">
+
+                <option value="">All Fields</option>
+
+                <?php foreach ($fields as $field): ?>
+                    <option value="<?= (int) $field['field_id'] ?>"
+                        <?= $fieldId === (int) $field['field_id']
+                            ? 'selected' : '' ?>>
+                        <?= e($field['field_name']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <div class="col-12">
+            <label for="keyword" class="form-label">
+                Keyword Search
+            </label>
+
+            <input type="search"
+                   id="keyword"
+                   name="keyword"
+                   class="form-control"
+                   maxlength="150"
+                   placeholder="Search scholarships or providers"
+                   value="<?= e($keyword) ?>">
+        </div>
+
+        <div class="col-md-6">
+            <label for="sort" class="form-label">Sort By</label>
+            <select name="sort" id="sort" class="form-select">
+                <?php
+                $sortLabels = [
+                    'deadline_asc' => 'Deadline: Soonest First',
+                    'deadline_desc' => 'Deadline: Latest First',
+                    'name_asc' => 'Scholarship Name: A-Z',
+                    'name_desc' => 'Scholarship Name: Z-A',
+                    'award_desc' => 'Award: Highest First',
+                    'award_asc' => 'Award: Lowest First'
+                ];
+
+                foreach ($sortLabels as $value => $label):
+                ?>
+                    <option value="<?= e($value) ?>"
+                        <?= ($sort ?? 'deadline_asc') === $value
+                            ? 'selected' : '' ?>>
+                        <?= e($label) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <div class="col-12 d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                Search Scholarships
+            </button>
+
+            <a href="/pages/scholarships.php"
+               class="btn btn-outline-secondary">
+                Clear Filters
+            </a>
+        </div>
+    </form>
+
+    <div id="scholarshipResults"
+         aria-live="polite">
 
     <?php if ($errorMessage !== ''): ?>
 
-        <div class="alert alert-danger" role="alert">
+        <div class="alert alert-danger">
             <?= e($errorMessage) ?>
-        </div>
-
-    <?php elseif (empty($scholarships)): ?>
-
-        <div class="alert alert-info">
-            No scholarships are currently available.
         </div>
 
     <?php else: ?>
 
-        <div class="row g-4">
-            <?php foreach ($scholarships as $scholarship): ?>
+        <p class="text-muted">
+            <?= $totalResults ?> scholarship(s) found.
+            Page <?= $page ?> of <?= $totalPages ?>.
+        </p>
 
-                <div class="col-md-6 col-lg-4">
-                    <div class="card h-100 shadow-sm">
-                        <div class="card-body">
+        <?php if ($scholarships === []): ?>
 
-                            <h2 class="h5 card-title">
-                                <?= e($scholarship['scholarship_name']) ?>
-                            </h2>
+            <div class="alert alert-info">
+                No scholarships match the selected filters.
+            </div>
 
-                            <p class="card-text mb-2">
-                                <strong>Provider:</strong>
-                                <?= e($scholarship['provider_name']) ?>
-                            </p>
+        <?php else: ?>
 
-                            <p class="card-text mb-2">
-                                <strong>State:</strong>
-                                <?= e($scholarship['state_name'] ?? 'Not specified') ?>
-                            </p>
+            <!-- Mobile layout: scholarship cards -->
+            <div class="row g-4 d-lg-none">
 
-                            <p class="card-text mb-2">
-                                <strong>Type:</strong>
-                                <?= e($scholarship['national_or_state_local']) ?>
-                            </p>
+                <?php foreach ($scholarships as $scholarship): ?>
 
-                            <p class="card-text mb-2">
-                                <strong>Award:</strong>
-                                <?php if ($scholarship['award_amount_max'] !== null): ?>
-                                    $<?= number_format((float) $scholarship['award_amount_max'], 2) ?>
-                                <?php else: ?>
-                                    Not specified
-                                <?php endif; ?>
-                            </p>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 shadow-sm">
 
-                            <p class="card-text mb-2">
-                                <strong>Deadline:</strong>
-                                <?= e($scholarship['application_deadline'] ?? 'Not specified') ?>
-                            </p>
+                            <div class="card-body">
 
-                            <?php if (!empty($scholarship['notes'])): ?>
-                                <p class="text-muted small">
-                                    <?= e($scholarship['notes']) ?>
+                                <h2 class="h5 card-title">
+                                    <?= e($scholarship['scholarship_name']) ?>
+                                </h2>
+
+                                <p>
+                                    <strong>Provider:</strong>
+                                    <?= e($scholarship['provider_name']) ?>
                                 </p>
-                            <?php endif; ?>
 
-                        </div>
+                                <p>
+                                    <strong>State:</strong>
+                                    <?= e($scholarship['state_name'] ?? 'Not specified') ?>
+                                </p>
 
-                        <div class="card-footer bg-white">
-                            <?php
-                            // Only allow HTTP(S) links to scholarship websites.
-                            $url = $scholarship['official_url'];
-                            $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
-                            ?>
+                                <p>
+                                    <strong>Type:</strong>
+                                    <?= e($scholarship['national_or_state_local']) ?>
+                                </p>
 
-                            <?php if (in_array($scheme, ['http', 'https'], true)): ?>
-                                <a
-                                    href="<?= e($url) ?>"
-                                    class="btn btn-outline-primary"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
+                                <p>
+                                    <strong>Award:</strong>
+
+                                    <?php if ($scholarship['award_amount_max'] !== null): ?>
+                                        $<?= number_format(
+                                            (float) $scholarship['award_amount_max'],
+                                            2
+                                        ) ?>
+                                    <?php else: ?>
+                                        Not specified
+                                    <?php endif; ?>
+                                </p>
+
+                                <p>
+                                    <strong>Deadline:</strong>
+                                    <?= e(
+                                        $scholarship['application_deadline']
+                                        ?? 'Not specified'
+                                    ) ?>
+                                </p>
+
+                                <?php if (!empty($scholarship['notes'])): ?>
+                                    <p class="text-muted small">
+                                        <?= e($scholarship['notes']) ?>
+                                    </p>
+                                <?php endif; ?>
+
+                            </div>
+
+                            <div class="card-footer bg-white d-flex flex-wrap gap-2">
+                                <a href="/pages/scholarship_detail.php?id=<?= (int) $scholarship['scholarship_id'] ?>"
+                                   class="btn btn-primary">
+                                    View Details
+                                </a>
+
+                                <a href="<?= e($scholarship['official_url']) ?>"
+                                   class="btn btn-outline-primary"
+                                   target="_blank"
+                                   rel="noopener noreferrer">
                                     Official Website
                                 </a>
-                            <?php endif; ?>
+                            </div>
+
                         </div>
                     </div>
-                </div>
 
-            <?php endforeach; ?>
-        </div>
+                <?php endforeach; ?>
+
+            </div>
+
+            <!-- Desktop layout: scholarship results table -->
+            <div class="table-responsive d-none d-lg-block">
+                <table class="table table-striped table-bordered align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Scholarship</th>
+                            <th>Provider</th>
+                            <th>State</th>
+                            <th>Type</th>
+                            <th>Award</th>
+                            <th>Deadline</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        <?php foreach ($scholarships as $scholarship): ?>
+                            <tr>
+                                <td>
+                                    <?= e($scholarship['scholarship_name']) ?>
+                                </td>
+
+                                <td>
+                                    <?= e($scholarship['provider_name']) ?>
+                                </td>
+
+                                <td>
+                                    <?= e(
+                                        $scholarship['state_name']
+                                        ?? 'Not specified'
+                                    ) ?>
+                                </td>
+
+                                <td>
+                                    <?= e(
+                                        $scholarship['national_or_state_local']
+                                    ) ?>
+                                </td>
+
+                                <td>
+                                    <?php if ($scholarship['award_amount_max'] !== null): ?>
+                                        $<?= number_format(
+                                            (float) $scholarship['award_amount_max'],
+                                            2
+                                        ) ?>
+                                    <?php else: ?>
+                                        Not specified
+                                    <?php endif; ?>
+                                </td>
+
+                                <td>
+                                    <?= e(
+                                        $scholarship['application_deadline']
+                                        ?? 'Not specified'
+                                    ) ?>
+                                </td>
+
+                                <td>
+                                    <div class="d-flex flex-column gap-2">
+                                        <a href="/pages/scholarship_detail.php?id=<?= (int) $scholarship['scholarship_id'] ?>"
+                                           class="btn btn-sm btn-primary">
+                                            View Details
+                                        </a>
+
+                                        <a href="<?= e($scholarship['official_url']) ?>"
+                                           class="btn btn-sm btn-outline-primary"
+                                           target="_blank"
+                                           rel="noopener noreferrer">
+                                            Official Website
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+
+        <?php endif; ?>
 
     <?php endif; ?>
+
+    <?php if ($errorMessage === '' && $totalPages > 1): ?>
+        <nav aria-label="Scholarship result pages" class="mt-4">
+            <ul class="pagination flex-wrap">
+                <?php for ($number = 1; $number <= $totalPages; $number++): ?>
+                    <?php
+                    $query = $_GET;
+                    unset($query['search']);
+                    $query['page'] = $number;
+                    $url = '/pages/scholarships.php?' .
+                        http_build_query($query);
+                    ?>
+                    <li class="page-item <?= $number === $page ? 'active' : '' ?>">
+                        <a class="page-link"
+                           href="<?= e($url) ?>">
+                            <?= $number ?>
+                        </a>
+                    </li>
+                <?php endfor; ?>
+            </ul>
+        </nav>
+    <?php endif; ?>
+
+    </div>
+
 </main>
 
-<?php
-require_once $projectRoot . '/includes/footer.php';
-?>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="/assets/js/scholarship_search.js"></script>
+
+<?php require_once $projectRoot . '/includes/footer.php'; ?>
