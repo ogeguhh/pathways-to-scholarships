@@ -1,788 +1,358 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../includes/db.php';
-require_once __DIR__ . '/../includes/security.php';
-
 /*
- * Iteration 4 - Admin Scholarship Management
+ * Pathways to Scholarships
+ * Iteration 4 — Admin Scholarship List
  *
- * Bullet 1: Admin list, filtering, sorting, and bulk actions.
- * Bullet 2: Links to Create, View, Edit, and Archive pages.
- * Bullet 5: Scholarship verification.
- *
- * Development only until authentication and RBAC are implemented.
+ * Displays scholarship records and provides searching,
+ * sorting, and filtering using DataTables.
  */
 
-// Restrict this temporary admin page to local development.
-$host = strtolower($_SERVER['HTTP_HOST'] ?? '');
-$remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
+$projectRoot = dirname(__DIR__);
 
-$allowedHosts = [
-    'localhost',
-    'localhost:80',
-    'localhost:8001',
-    '127.0.0.1',
-    '127.0.0.1:80',
-    '127.0.0.1:8001'
-];
+require_once $projectRoot . '/includes/db.php';
+require_once $projectRoot . '/includes/security.php';
+require_once $projectRoot . '/includes/config.php';
 
-$allowedAddresses = ['127.0.0.1', '::1'];
+require_role(['Administrator', 'Super-admin']);
 
-if (
-    PHP_SAPI !== 'cli-server' ||
-    !in_array($host, $allowedHosts, true) ||
-    !in_array($remoteAddress, $allowedAddresses, true)
-) {
-    http_response_code(403);
-    exit('Development-only admin page.');
-}
+// Start the session before HTML output so the browser
+// receives the session cookie used for CSRF protection.
+ensure_session();
 
-// Generate a CSRF token for bulk actions.
-$csrfToken = csrf_token();
+$pdo = getDBConnection();
 
-// Retrieve scholarship records and related information.
-$sql = "
-    SELECT
-        sc.scholarship_id,
-        sc.scholarship_name,
+// LEFT JOIN keeps scholarships visible even when optional
+// state or national theme information is unavailable.
+$stmt = $pdo->prepare(
+    'SELECT
+        s.scholarship_id,
+        s.scholarship_name,
+        s.official_url,
+        s.national_or_state_local,
+        s.contributing_student,
+        s.import_batch_id,
+        s.application_deadline,
+        s.verification_date,
+        s.status,
         p.provider_name,
-        sc.national_or_state_local,
         st.state_name,
-        nt.theme_name,
-        sc.status,
-        sc.contributing_student,
-        sc.import_batch_id,
-        sc.verification_date
-    FROM scholarships AS sc
-    LEFT JOIN providers AS p
-        ON sc.provider_id = p.provider_id
-    LEFT JOIN states AS st
-        ON sc.state_id = st.state_id
-    LEFT JOIN national_themes AS nt
-        ON sc.theme_id = nt.theme_id
-    ORDER BY sc.scholarship_id DESC
-";
-
-$stmt = $pdo->query($sql);
-$scholarships = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Escape database values before displaying them in HTML.
-function displayValue(mixed $value): string
-{
-    if ($value === null || $value === '') {
-        return '—';
-    }
-
-    return htmlspecialchars(
-        (string)$value,
-        ENT_QUOTES | ENT_SUBSTITUTE,
-        'UTF-8'
-    );
-}
-
-// Retrieve success messages from bulk operations.
-$verificationMessage = $_SESSION['verification_message'] ?? null;
-$archiveMessage = $_SESSION['archive_message'] ?? null;
-
-// Remove messages so they appear only once.
-unset(
-    $_SESSION['verification_message'],
-    $_SESSION['archive_message']
+        nt.theme_name
+     FROM scholarships s
+     JOIN providers p
+       ON p.provider_id = s.provider_id
+     LEFT JOIN states st
+       ON st.state_id = s.state_id
+     LEFT JOIN national_themes nt
+       ON nt.theme_id = s.theme_id
+     ORDER BY s.scholarship_id DESC'
 );
+
+$stmt->execute();
+$scholarships = $stmt->fetchAll();
+
+$pageTitle = 'Manage Scholarships | Pathways to Scholarships';
+
+require_once $projectRoot . '/includes/header.php';
+require_once $projectRoot . '/includes/nav.php';
 ?>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
+<main class="container py-5">
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1"
-    >
-
-    <title>Admin Scholarship Management</title>
-
-    <!-- Bootstrap provides the page layout and styling. -->
-    <link
-        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-        rel="stylesheet"
-    >
-
-    <!-- DataTables provides searching, sorting, and pagination. -->
-    <link
-        href="https://cdn.datatables.net/2.3.4/css/dataTables.bootstrap5.min.css"
-        rel="stylesheet"
-    >
-</head>
-
-<body class="bg-light">
-
-<!-- ADMIN NAVIGATION -->
-<nav class="navbar navbar-dark bg-primary">
-    <div class="container-fluid">
-        <span class="navbar-brand mb-0 h1">
-            Pathways to Scholarships — Admin
-        </span>
-    </div>
-</nav>
-
-<main class="container-fluid px-4 py-4">
-
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
-        <div>
-            <h1 class="h2 mb-2">
-                Admin Scholarship Management
-            </h1>
-
-            <p class="text-muted mb-0">
-                View, create, edit, search, filter, verify,
-                and archive scholarship records.
-            </p>
-        </div>
-
-        <!-- Connect the admin list to the Create Scholarship page. -->
-        <a
-            href="scholarship_create.php"
-            class="btn btn-primary"
-        >
-            + Add Scholarship
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="mb-0">Manage Scholarships</h1>
+        <a href="scholarship_form.php"
+           class="btn btn-primary">
+            Create Scholarship
         </a>
     </div>
 
-    <div class="alert alert-info">
-        Development mode — no administrator login required.
-        This page is restricted to local testing.
+    <p class="lead">
+        Review scholarship records, search by name, and filter
+        imported scholarships.
+    </p>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <label for="stateFilter" class="form-label">State</label>
+            <select id="stateFilter" class="form-select">
+                <option value="">All states</option>
+            </select>
+        </div>
+
+        <div class="col-md-3">
+            <label for="studentFilter" class="form-label">Contributing Student</label>
+            <select id="studentFilter" class="form-select">
+                <option value="">All students</option>
+            </select>
+        </div>
+
+        <div class="col-md-3">
+            <label for="batchFilter" class="form-label">Import Batch</label>
+            <select id="batchFilter" class="form-select">
+                <option value="">All batches</option>
+            </select>
+        </div>
+
+        <div class="col-md-3">
+            <label for="themeFilter" class="form-label">National Theme</label>
+            <select id="themeFilter" class="form-select">
+                <option value="">All themes</option>
+            </select>
+        </div>
     </div>
 
-    <!-- Display verification success messages. -->
-    <?php if ($verificationMessage !== null): ?>
-        <div class="alert alert-success" role="status">
-            <?= displayValue($verificationMessage) ?>
-        </div>
-    <?php endif; ?>
+    <form id="bulkActionForm"
+          action="scholarship_bulk.php"
+          method="post">
 
-    <!-- Display archive success messages. -->
-    <?php if ($archiveMessage !== null): ?>
-        <div class="alert alert-success" role="status">
-            <?= displayValue($archiveMessage) ?>
-        </div>
-    <?php endif; ?>
+        <input type="hidden"
+               name="csrf_token"
+               value="<?= e(csrf_token()) ?>">
 
-    <!-- SCHOLARSHIP FILTERS -->
-    <div class="card shadow-sm mb-4">
-        <div class="card-body">
+        <div class="d-flex gap-2 align-items-center mb-3">
+            <label for="bulkAction" class="form-label mb-0">
+                Bulk Action
+            </label>
 
-            <h2 class="h5 mb-3">Scholarship Filters</h2>
+            <select id="bulkAction"
+                    name="bulk_action"
+                    class="form-select w-auto"
+                    required>
+                <option value="">Choose action</option>
+                <option value="verify">Mark as Verified</option>
+                <option value="archive">Archive</option>
+            </select>
 
-            <div class="row g-3">
-
-                <div class="col-md-3">
-                    <label for="stateFilter" class="form-label">
-                        State
-                    </label>
-
-                    <select id="stateFilter" class="form-select">
-                        <option value="">All States</option>
-                    </select>
-                </div>
-
-                <div class="col-md-3">
-                    <label for="studentFilter" class="form-label">
-                        Contributing Student
-                    </label>
-
-                    <select id="studentFilter" class="form-select">
-                        <option value="">All Students</option>
-                    </select>
-                </div>
-
-                <div class="col-md-3">
-                    <label for="batchFilter" class="form-label">
-                        Import Batch
-                    </label>
-
-                    <select id="batchFilter" class="form-select">
-                        <option value="">All Batches</option>
-                    </select>
-                </div>
-
-                <div class="col-md-3">
-                    <label for="themeFilter" class="form-label">
-                        National Theme
-                    </label>
-
-                    <select id="themeFilter" class="form-select">
-                        <option value="">All Themes</option>
-                    </select>
-                </div>
-
-            </div>
-
-            <button
-                type="button"
-                id="clearFilters"
-                class="btn btn-outline-secondary mt-3"
-            >
-                Clear Filters
+            <button type="submit" class="btn btn-primary">
+                Apply
             </button>
-
         </div>
-    </div>
 
-    <!-- SCHOLARSHIP RECORDS -->
-    <div class="card shadow-sm">
-        <div class="card-body">
-
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
-
-                <div>
-                    <h2 class="h5 mb-1">
-                        Scholarship Records
-                    </h2>
-
-                    <span id="selectedCount" class="text-muted">
-                        0 scholarships selected
-                    </span>
-                </div>
-
-                <div class="d-flex flex-wrap gap-2">
-
-                    <!-- Bulk verification from Mohamed's implementation. -->
-                    <button
-                        type="button"
-                        id="markVerifiedBtn"
-                        class="btn btn-success"
-                        disabled
-                    >
-                        Mark Verified
-                    </button>
-
-                    <!-- Bulk archive from Mohamed's implementation. -->
-                    <button
-                        type="button"
-                        id="archiveBtn"
-                        class="btn btn-danger"
-                        disabled
-                    >
-                        Bulk Archive
-                    </button>
-
-                </div>
-
-            </div>
-
-            <div class="table-responsive">
-
-                <table
-                    id="scholarshipsTable"
-                    class="table table-striped table-bordered align-middle w-100"
-                >
-                    <thead>
-                        <tr>
-                            <th>
-                                <input
-                                    type="checkbox"
-                                    id="selectAll"
-                                    class="form-check-input"
-                                    aria-label="Select all filtered scholarships"
-                                >
-                            </th>
-
-                            <th>ID</th>
-                            <th>Scholarship</th>
-                            <th>Provider</th>
-                            <th>Type</th>
-                            <th>State</th>
-                            <th>Student</th>
-                            <th>Batch</th>
-                            <th>Theme</th>
-                            <th>Status</th>
-                            <th>Verification</th>
-
-                            <!-- New column for individual CRUD actions. -->
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-
-                    <?php foreach ($scholarships as $scholarship): ?>
-                        <?php
-                        // Use the database ID for this row's action links.
-                        $scholarshipId = (int)$scholarship['scholarship_id'];
-                        ?>
-
-                        <tr>
-
-                            <!-- Checkbox for bulk actions. -->
-                            <td>
-                                <input
-                                    type="checkbox"
-                                    class="form-check-input scholarship-checkbox"
-                                    value="<?= $scholarshipId ?>"
-                                    aria-label="Select scholarship <?= $scholarshipId ?>"
-                                >
-                            </td>
-
-                            <td>
-                                <?= $scholarshipId ?>
-                            </td>
-
-                            <td>
-                                <?= displayValue($scholarship['scholarship_name']) ?>
-                            </td>
-
-                            <td>
-                                <?= displayValue($scholarship['provider_name']) ?>
-                            </td>
-
-                            <td>
-                                <?= displayValue($scholarship['national_or_state_local']) ?>
-                            </td>
-
-                            <td>
-                                <?= displayValue($scholarship['state_name']) ?>
-                            </td>
-
-                            <td>
-                                <?= displayValue($scholarship['contributing_student']) ?>
-                            </td>
-
-                            <td>
-                                <?= displayValue($scholarship['import_batch_id']) ?>
-                            </td>
-
-                            <td>
-                                <?= displayValue($scholarship['theme_name']) ?>
-                            </td>
-
-                            <!-- Show active or archived status. -->
-                            <td>
-                                <?php if ($scholarship['status'] === 'active'): ?>
-                                    <span class="badge bg-success">
-                                        Active
-                                    </span>
-                                <?php else: ?>
-                                    <span class="badge bg-secondary">
-                                        Archived
-                                    </span>
-                                <?php endif; ?>
-                            </td>
-
-                            <!-- Show verification information. -->
-                            <td>
-                                <?php if (!empty($scholarship['verification_date'])): ?>
-
-                                    <span class="badge bg-success">
-                                        Verified
-                                    </span>
-
-                                    <div class="small text-muted">
-                                        <?= displayValue($scholarship['verification_date']) ?>
-                                    </div>
-
-                                <?php else: ?>
-
-                                    <span class="badge bg-warning text-dark">
-                                        Not Verified
-                                    </span>
-
-                                <?php endif; ?>
-                            </td>
-
-                            <!-- Individual scholarship actions. -->
-                            <td>
-                                <div class="d-flex flex-wrap gap-1">
-
-                                    <!-- View the scholarship details. -->
-                                    <a
-                                        href="scholarship_view.php?id=<?= $scholarshipId ?>"
-                                        class="btn btn-sm btn-outline-primary"
-                                    >
-                                        View
-                                    </a>
-
-                                    <!-- Edit the selected scholarship. -->
-                                    <a
-                                        href="scholarship_edit.php?id=<?= $scholarshipId ?>"
-                                        class="btn btn-sm btn-outline-secondary"
-                                    >
-                                        Edit
-                                    </a>
-
-                                    <!-- Only active scholarships can be archived. -->
-                                    <?php if ($scholarship['status'] === 'active'): ?>
-                                        <a
-                                            href="scholarship_archive.php?id=<?= $scholarshipId ?>"
-                                            class="btn btn-sm btn-outline-danger"
-                                        >
-                                            Archive
-                                        </a>
-                                    <?php endif; ?>
-
-                                </div>
-                            </td>
-
-                        </tr>
-
-                    <?php endforeach; ?>
-
-                    </tbody>
-                </table>
-
-            </div>
-
-        </div>
-    </div>
-
-    <!-- Hidden form for bulk verification. -->
-    <form
-        id="verificationForm"
-        action="verify_scholarships.php"
-        method="POST"
-        class="d-none"
-    >
-        <input
-            type="hidden"
-            name="csrf_token"
-            value="<?= displayValue($csrfToken) ?>"
-        >
-
-        <div id="verificationSelectedIds"></div>
     </form>
 
-    <!-- Hidden form for bulk archiving. -->
-    <form
-        id="archiveForm"
-        action="archive_scholarships.php"
-        method="POST"
-        class="d-none"
-    >
-        <input
-            type="hidden"
-            name="csrf_token"
-            value="<?= displayValue($csrfToken) ?>"
-        >
+    <div class="table-responsive">
+        <table id="scholarshipsTable"
+               class="table table-striped table-bordered align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>
+                        <input type="checkbox"
+                               id="selectAll"
+                               aria-label="Select all visible scholarships">
+                    </th>
+                    <th>ID</th>
+                    <th>Scholarship</th>
+                    <th>Provider</th>
+                    <th>State</th>
+                    <th>Type</th>
+                    <th>Theme</th>
+                    <th>Student</th>
+                    <th>Batch</th>
+                    <th>Deadline</th>
+                    <th>Verified</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
 
-        <div id="archiveSelectedIds"></div>
-    </form>
+            <tbody>
+                <?php foreach ($scholarships as $scholarship): ?>
+                    <tr>
+                        <td>
+                            <?php if ($scholarship['status'] === 'active'): ?>
+                                <input type="checkbox"
+                                       class="scholarship-select"
+                                       value="<?= (int) $scholarship['scholarship_id'] ?>"
+                                       aria-label="Select scholarship <?= (int) $scholarship['scholarship_id'] ?>">
+                            <?php endif; ?>
+                        </td>
+                        <td><?= (int) $scholarship['scholarship_id'] ?></td>
+
+                        <td>
+                            <a href="<?= e($scholarship['official_url']) ?>"
+                               target="_blank"
+                               rel="noopener noreferrer">
+                                <?= e($scholarship['scholarship_name']) ?>
+                            </a>
+                        </td>
+
+                        <td><?= e($scholarship['provider_name']) ?></td>
+                        <td><?= e($scholarship['state_name']) ?></td>
+                        <td><?= e($scholarship['national_or_state_local']) ?></td>
+                        <td><?= e($scholarship['theme_name']) ?></td>
+                        <td><?= e($scholarship['contributing_student']) ?></td>
+
+                        <td>
+                            <?= $scholarship['import_batch_id'] !== null
+                                ? (int) $scholarship['import_batch_id']
+                                : '' ?>
+                        </td>
+
+                        <td><?= e($scholarship['application_deadline']) ?></td>
+                        <td><?= e($scholarship['verification_date']) ?></td>
+
+                        <td>
+                            <?php if ($scholarship['status'] === 'active'): ?>
+                                <span class="badge bg-success">Active</span>
+                            <?php else: ?>
+                                <span class="badge bg-secondary">Archived</span>
+                            <?php endif; ?>
+                        </td>
+
+                        <td>
+                            <a href="scholarship_view.php?id=<?= (int) $scholarship['scholarship_id'] ?>"
+                               class="btn btn-sm btn-outline-info">
+                                View
+                            </a>
+
+                            <a href="scholarship_form.php?id=<?= (int) $scholarship['scholarship_id'] ?>"
+                               class="btn btn-sm btn-outline-primary">
+                                Edit
+                            </a>
+
+                            <?php if ($scholarship['status'] === 'active'): ?>
+                                <form action="scholarship_verify.php"
+                                      method="post"
+                                      class="d-inline"
+                                      onsubmit="return confirm('Mark this scholarship as verified?');">
+
+                                    <input type="hidden"
+                                           name="csrf_token"
+                                           value="<?= e(csrf_token()) ?>">
+
+                                    <input type="hidden"
+                                           name="scholarship_id"
+                                           value="<?= (int) $scholarship['scholarship_id'] ?>">
+
+                                    <button type="submit"
+                                            class="btn btn-sm btn-outline-success">
+                                        Verify
+                                    </button>
+                                </form>
+
+                                <form action="scholarship_archive.php"
+                                      method="post"
+                                      class="d-inline"
+                                      onsubmit="return confirm('Archive this scholarship?');">
+
+                                    <input type="hidden"
+                                           name="csrf_token"
+                                           value="<?= e(csrf_token()) ?>">
+
+                                    <input type="hidden"
+                                           name="scholarship_id"
+                                           value="<?= (int) $scholarship['scholarship_id'] ?>">
+
+                                    <button type="submit"
+                                            class="btn btn-sm btn-outline-danger">
+                                        Archive
+                                    </button>
+                                </form>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
 
 </main>
 
-<!-- JavaScript libraries -->
+<link rel="stylesheet"
+      href="https://cdn.datatables.net/2.3.4/css/dataTables.bootstrap5.min.css">
+
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/2.3.4/js/dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/2.3.4/js/dataTables.bootstrap5.min.js"></script>
 
 <script>
-$(document).ready(function () {
+document.addEventListener('DOMContentLoaded', function () {
 
-    /*
-     * Keep selected scholarship IDs in a Set.
-     *
-     * A Set stores unique values and prevents the same
-     * scholarship from being selected more than once.
-     */
-    const selectedIds = new Set();
-
-    // Initialize the scholarship table.
-    const table = $('#scholarshipsTable').DataTable({
+    // Initialize the sortable, searchable scholarship table.
+    const table = new DataTable('#scholarshipsTable', {
         pageLength: 10,
-        order: [[1, 'desc']],
-
-        columnDefs: [
-            {
-                // Checkbox column cannot be sorted or searched.
-                targets: 0,
-                orderable: false,
-                searchable: false
-            },
-            {
-                // Action buttons should not affect search or sorting.
-                targets: -1,
-                orderable: false,
-                searchable: false
-            }
-        ]
+        order: [[1, 'desc']]
     });
 
-    /*
-     * Populate a filter dropdown using the values
-     * found in a particular DataTables column.
-     */
-    function populateFilter(selectId, columnIndex) {
+    // Populate a filter with unique values from a table column.
+    function setupFilter(selectId, columnIndex) {
+        const select = document.getElementById(selectId);
+        const column = table.column(columnIndex);
 
-        const select = $(selectId);
-        const values = new Set();
+        column.data().unique().sort().each(function (value) {
+            const text = $('<div>').html(value).text().trim();
 
-        table.column(columnIndex).data().each(function (value) {
-
-            const cleanValue = $('<div>')
-                .html(value)
-                .text()
-                .trim();
-
-            if (cleanValue !== '' && cleanValue !== '—') {
-                values.add(cleanValue);
+            if (text !== '') {
+                const option = document.createElement('option');
+                option.value = text;
+                option.textContent = text;
+                select.appendChild(option);
             }
         });
 
-        Array.from(values).sort().forEach(function (value) {
-            select.append(
-                $('<option>', {
-                    value: value,
-                    text: value
-                })
-            );
+        select.addEventListener('change', function () {
+            const selected = this.value;
+
+            column.search(
+                selected ? '^' + $.fn.dataTable.util.escapeRegex(selected) + '$' : '',
+                true,
+                false
+            ).draw();
         });
     }
 
-    // Populate filters using their existing column positions.
-    populateFilter('#stateFilter', 5);
-    populateFilter('#studentFilter', 6);
-    populateFilter('#batchFilter', 7);
-    populateFilter('#themeFilter', 8);
+    setupFilter('stateFilter', 4);
+    setupFilter('studentFilter', 7);
+    setupFilter('batchFilter', 8);
+    setupFilter('themeFilter', 6);
 
-    /*
-     * Apply an exact-match filter to a table column.
-     *
-     * escapeRegex prevents special characters in filter
-     * values from being interpreted as regular expressions.
-     */
-    function applyFilter(selectId, columnIndex) {
-
-        $(selectId).on('change', function () {
-
-            const selected = $(this).val();
-
-            if (selected === '') {
-                table.column(columnIndex).search('').draw();
-
-            } else {
-                const escaped =
-                    $.fn.dataTable.util.escapeRegex(selected);
-
-                table.column(columnIndex)
-                    .search('^' + escaped + '$', true, false)
-                    .draw();
-            }
-        });
-    }
-
-    // Connect each dropdown to its table column.
-    applyFilter('#stateFilter', 5);
-    applyFilter('#studentFilter', 6);
-    applyFilter('#batchFilter', 7);
-    applyFilter('#themeFilter', 8);
-
-    // Clear all filters and restore the full table.
-    $('#clearFilters').on('click', function () {
-
-        $('#stateFilter').val('');
-        $('#studentFilter').val('');
-        $('#batchFilter').val('');
-        $('#themeFilter').val('');
-
-        table.search('');
-
-        [5, 6, 7, 8].forEach(function (columnIndex) {
-            table.column(columnIndex).search('');
-        });
-
-        table.draw();
+    // Select or deselect checkboxes on the current table page.
+    document.getElementById('selectAll').addEventListener('change', function () {
+        table.rows({ page: 'current', search: 'applied' })
+            .nodes()
+            .to$()
+            .find('.scholarship-select')
+            .prop('checked', this.checked);
     });
 
-    /*
-     * Update the selected count and bulk action buttons.
-     *
-     * Selected IDs are preserved when the user searches,
-     * filters, sorts, or changes table pages.
-     */
-    function updateSelection() {
+    // Collect selected IDs before submitting the bulk action.
+    document.getElementById('bulkActionForm').addEventListener('submit', function (event) {
+        const selected = table.$('.scholarship-select:checked');
 
-        const count = selectedIds.size;
-
-        $('#selectedCount').text(
-            count + (
-                count === 1
-                    ? ' scholarship selected'
-                    : ' scholarships selected'
-            )
-        );
-
-        $('#markVerifiedBtn').prop('disabled', count === 0);
-        $('#archiveBtn').prop('disabled', count === 0);
-
-        const filteredNodes = table.rows({
-            search: 'applied'
-        }).nodes();
-
-        const filteredIds = [];
-
-        $(filteredNodes)
-            .find('.scholarship-checkbox')
-            .each(function () {
-                filteredIds.push(String(this.value));
-            });
-
-        const allSelected =
-            filteredIds.length > 0 &&
-            filteredIds.every(function (id) {
-                return selectedIds.has(id);
-            });
-
-        const someSelected = filteredIds.some(function (id) {
-            return selectedIds.has(id);
-        });
-
-        $('#selectAll')
-            .prop('checked', allSelected)
-            .prop(
-                'indeterminate',
-                someSelected && !allSelected
-            );
-    }
-
-    // Track individual checkbox changes.
-    $('#scholarshipsTable').on(
-        'change',
-        '.scholarship-checkbox',
-        function () {
-
-            const id = String(this.value);
-
-            if (this.checked) {
-                selectedIds.add(id);
-            } else {
-                selectedIds.delete(id);
-            }
-
-            updateSelection();
-        }
-    );
-
-    // Select or deselect all filtered scholarships.
-    $('#selectAll').on('change', function () {
-
-        const shouldSelect = this.checked;
-
-        table.rows({
-            search: 'applied'
-        }).nodes().to$()
-            .find('.scholarship-checkbox')
-            .each(function () {
-
-                const id = String(this.value);
-
-                if (shouldSelect) {
-                    selectedIds.add(id);
-                } else {
-                    selectedIds.delete(id);
-                }
-            });
-
-        table.draw(false);
-    });
-
-    // Restore checkbox states when DataTables redraws.
-    table.on('draw', function () {
-
-        $('#scholarshipsTable .scholarship-checkbox')
-            .each(function () {
-                this.checked = selectedIds.has(
-                    String(this.value)
-                );
-            });
-
-        updateSelection();
-    });
-
-
-    /*
-     * Submit selected scholarship IDs to a hidden form.
-     *
-     * This allows the administrator to verify or archive
-     * multiple scholarships with one action.
-     */
-    function submitSelected(formId, containerId) {
-
-        const container = $(containerId);
-
-        // Remove previously submitted IDs.
-        container.empty();
-
-        // Add each selected scholarship ID as a hidden input.
-        selectedIds.forEach(function (id) {
-            $('<input>', {
-                type: 'hidden',
-                name: 'scholarship_ids[]',
-                value: id
-            }).appendTo(container);
-        });
-
-        // Submit the form to the PHP processing page.
-        $(formId)[0].submit();
-    }
-
-    /*
-     * Bulk verification button.
-     *
-     * Ask for confirmation before updating records.
-     */
-    $('#markVerifiedBtn').on('click', function () {
-
-        if (selectedIds.size === 0) {
+        if (selected.length === 0) {
+            event.preventDefault();
+            alert('Select at least one scholarship.');
             return;
         }
 
-        const confirmed = confirm(
-            'Mark ' + selectedIds.size +
-            ' scholarship(s) as verified?'
-        );
-
-        if (!confirmed) {
+        if (!confirm('Apply this action to ' + selected.length + ' scholarships?')) {
+            event.preventDefault();
             return;
         }
 
-        submitSelected(
-            '#verificationForm',
-            '#verificationSelectedIds'
+        // Remove IDs from a previous submission attempt.
+        this.querySelectorAll('input[name="scholarship_ids[]"]').forEach(
+            input => input.remove()
         );
+
+        const uniqueIds = new Set();
+
+        selected.each((index, checkbox) => {
+            uniqueIds.add(checkbox.value);
+        });
+
+        uniqueIds.forEach(id => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'scholarship_ids[]';
+            input.value = id;
+            this.appendChild(input);
+        });
     });
-
-    /*
-     * Bulk archive button.
-     *
-     * Ask for confirmation before archiving records.
-     */
-    $('#archiveBtn').on('click', function () {
-
-        if (selectedIds.size === 0) {
-            return;
-        }
-
-        const confirmed = confirm(
-            'Archive ' + selectedIds.size +
-            ' scholarship(s)? This will change their status to Archived.'
-        );
-
-        if (!confirmed) {
-            return;
-        }
-
-        submitSelected(
-            '#archiveForm',
-            '#archiveSelectedIds'
-        );
-    });
-
-    // Initialize the selection counter and button states.
-    updateSelection();
 
 });
 </script>
 
-</body>
-</html>
+<?php require_once $projectRoot . '/includes/footer.php'; ?>

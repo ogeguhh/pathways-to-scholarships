@@ -1,264 +1,125 @@
 <?php
 declare(strict_types=1);
 
-/**
- * Iteration 3 Requirements 1–3:
- * Read CSV and Excel scholarship files.
- * Preserve raw values for the team's validation module.
- */
-declare(strict_types=1);
-
-/**
- * Iteration 3 Requirements 1–3:
- * Read CSV and Excel scholarship files.
- * Preserve raw values for the team's validation module.
+/*
+ * Pathways to Scholarships
+ * Iteration 3 — CSV Import Reader
+ *
+ * Reads CSV data and checks the professor's official 29-column
+ * scholarship template before staging any records.
  */
 
-function import_expected_headers(): array {
-    $path = __DIR__ . '/../templates/scholarship_import_template.csv';
-    $f = fopen($path, 'rb');
+require_once __DIR__ . '/import_fields.php';
 
-    if (!$f) {
-        throw new RuntimeException('Missing CSV template.');
-    }
+// Clean a column heading without changing its intended wording.
+function cleanImportHeading(string $heading): string
+{
+    // Remove a UTF-8 byte-order mark if Excel included one.
+    $heading = preg_replace('/^\xEF\xBB\xBF/', '', $heading);
 
-    try {
-        $headers = fgetcsv($f, 0, ',', '"', '');
-    } finally {
-        fclose($f);
-    }
+    // Replace nonbreaking spaces with ordinary spaces.
+    $heading = str_replace("\xC2\xA0", ' ', $heading);
 
-    if (!$headers) {
-        throw new RuntimeException('Template is empty.');
-    }
+    // Normalize repeated spaces, tabs, and line breaks.
+    $heading = preg_replace('/\s+/u', ' ', $heading);
 
-    $headers[0] = preg_replace('/^\xEF\xBB\xBF/', '', $headers[0]);
-
-    return $headers;
+    return trim($heading);
 }
 
-function import_csv_rows(string $path): array {
-    $fh = fopen($path, 'rb');
+// Read a CSV file and return its scholarship records.
+function readScholarshipCSV(string $filePath): array
+{
+    $handle = fopen($filePath, 'rb');
 
-    if (!$fh) {
-        throw new RuntimeException('Could not open CSV.');
+    if ($handle === false) {
+        throw new RuntimeException('Unable to open the uploaded file.');
     }
 
-    $rows = [];
-
     try {
-        while (($row = fgetcsv($fh, 0, ',', '"', '')) !== false) {
-            if (count($row) === 1 && trim((string)$row[0]) === '') {
+        $headers = fgetcsv($handle, 0, ',', '"', '');
+
+        if ($headers === false || $headers === []) {
+            throw new RuntimeException('The CSV file is empty.');
+        }
+
+        $headers = array_map(
+            static fn($heading) => cleanImportHeading((string) $heading),
+            $headers
+        );
+
+        // Reject blank or repeated headings.
+        if (in_array('', $headers, true)) {
+            throw new RuntimeException(
+                'The CSV contains an empty column heading.'
+            );
+        }
+
+        if (count(array_unique($headers)) !== count($headers)) {
+            throw new RuntimeException(
+                'The CSV contains duplicate column headings.'
+            );
+        }
+
+        // Compare the uploaded headings with the official template.
+        $required = array_map(
+            'cleanImportHeading',
+            scholarshipImportFields()
+        );
+
+        $missing = array_values(array_diff($required, $headers));
+        $extra = array_values(array_diff($headers, $required));
+
+        if ($missing !== [] || $extra !== []) {
+            $messages = [];
+
+            if ($missing !== []) {
+                $messages[] = 'Missing columns: ' . implode(', ', $missing);
+            }
+
+            if ($extra !== []) {
+                $messages[] = 'Unexpected columns: ' . implode(', ', $extra);
+            }
+
+            throw new RuntimeException(
+                'Invalid scholarship template. ' . implode(' | ', $messages)
+            );
+        }
+
+        if (count($headers) !== 29) {
+            throw new RuntimeException(
+                'The scholarship template must contain exactly 29 columns.'
+            );
+        }
+
+        $rows = [];
+        $rowNumber = 1;
+
+        while (($values = fgetcsv($handle, 0, ',', '"', '')) !== false) {
+            $rowNumber++;
+
+            // Ignore completely blank lines.
+            if (
+                count($values) === 1 &&
+                trim((string) $values[0]) === ''
+            ) {
                 continue;
             }
 
-            $rows[] = $row;
-
-            if (count($rows) > 5001) {
-                throw new RuntimeException('Too many rows (maximum 5,000 scholarships).');
-            }
-        }
-    } finally {
-        fclose($fh);
-    }
-
-    if ($rows) {
-        $rows[0][0] = preg_replace(
-            '/^\xEF\xBB\xBF/',
-            '',
-            (string)$rows[0][0]
-        );
-    }
-
-    return $rows;
-}
-
-function import_xlsx_rows(string $path): array {
-    if (!class_exists('ZipArchive') || !function_exists('simplexml_load_string')) {
-        throw new RuntimeException(
-            'Enable PHP ZIP and SimpleXML extensions to import Excel files.'
-        );
-    }
-
-    $zip = new ZipArchive();
-
-    if ($zip->open($path) !== true) {
-        throw new RuntimeException('Invalid Excel workbook.');
-    }
-
-    try {
-        $total = 0;
-
-        for ($i = 0; $i < $zip->numFiles; $i++) {
-            $stat = $zip->statIndex($i);
-            $total += $stat['size'];
-
-            if ($total > 30 * 1024 * 1024) {
+            if (count($values) !== count($headers)) {
                 throw new RuntimeException(
-                    'Excel workbook expands beyond 30 MB.'
+                    "CSV row {$rowNumber} has an incorrect number of columns."
                 );
             }
-        }
 
-        $namespace = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
-
-        // Read shared strings.
-        $shared = [];
-        $sharedXml = $zip->getFromName('xl/sharedStrings.xml');
-
-        if ($sharedXml !== false) {
-            $xml = simplexml_load_string(
-                $sharedXml,
-                'SimpleXMLElement',
-                LIBXML_NONET
-            );
-
-            if ($xml === false) {
-                throw new RuntimeException('Invalid Excel shared strings.');
-            }
-
-            $xml->registerXPathNamespace('x', $namespace);
-
-            foreach ($xml->xpath('//x:si') as $si) {
-                $si->registerXPathNamespace('x', $namespace);
-
-                $str = '';
-
-                foreach ($si->xpath('.//x:t') as $t) {
-                    $str .= (string)$t;
-                }
-
-                $shared[] = $str;
-            }
-        }
-
-        // Read the first worksheet.
-        $data = $zip->getFromName('xl/worksheets/sheet1.xml');
-
-        if ($data === false) {
-            throw new RuntimeException('Excel first worksheet is missing.');
-        }
-
-        $xml = simplexml_load_string(
-            $data,
-            'SimpleXMLElement',
-            LIBXML_NONET
-        );
-
-        if ($xml === false) {
-            throw new RuntimeException('Invalid Excel worksheet.');
-        }
-
-        $xml->registerXPathNamespace('x', $namespace);
-
-        $rows = [];
-
-        foreach ($xml->xpath('//x:sheetData/x:row') as $row) {
-            $row->registerXPathNamespace('x', $namespace);
-
-            $cells = [];
-
-            foreach ($row->xpath('./x:c') as $cell) {
-                $cell->registerXPathNamespace('x', $namespace);
-
-                $ref = (string)$cell['r'];
-
-                if (!preg_match('/^([A-Z]+)\d+$/', $ref, $m)) {
-                    continue;
-                }
-
-                $idx = 0;
-
-                foreach (str_split($m[1]) as $letter) {
-                    $idx = $idx * 26 + ord($letter) - 64;
-                }
-
-                $idx--;
-
-                if ($idx >= 29) {
-                    continue;
-                }
-
-                $type = (string)$cell['t'];
-                $v = $cell->xpath('./x:v');
-
-                if ($type === 'inlineStr') {
-                    $t = $cell->xpath('.//x:t');
-
-                    $value = implode('', array_map('strval', $t));
-                } else {
-                    $value = isset($v[0]) ? (string)$v[0] : '';
-
-                    if ($type === 's') {
-                        $value = $shared[(int)$value] ?? '';
-                    }
-                }
-
-                $cells[$idx] = $value;
-            }
-
-            if ($cells) {
-    // Always return all 29 columns, even when some cells are empty.
-    $values = array_fill(0, 29, '');
-
-    foreach ($cells as $idx => $value) {
-        $values[$idx] = $value;
-    }
-
-                $rows[] = $values;
-
-                if (count($rows) > 5001) {
-                    throw new RuntimeException(
-                        'Too many rows (maximum 5,000 scholarships).'
-                    );
-                }
-            }
+            $rows[] = [
+                'row_number' => $rowNumber,
+                'data' => array_combine($headers, $values),
+            ];
         }
 
         return $rows;
 
     } finally {
-        $zip->close();
+        fclose($handle);
     }
-}
-
-function import_read_rows(string $path, string $ext): array {
-    if ($ext === 'csv') {
-        return import_csv_rows($path);
-    }
-
-    if ($ext === 'xlsx') {
-        return import_xlsx_rows($path);
-    }
-
-    throw new RuntimeException('Unsupported file type.');
-}
-
-function import_check_headers(array $actual): void {
-    $expected = import_expected_headers();
-
-    $actual = array_map(
-        fn($v) => trim((string)$v),
-        $actual
-    );
-
-    if ($actual !== $expected) {
-        throw new InvalidArgumentException(
-            'The 29 column headers must match the downloadable template exactly and in order.'
-        );
-    }
-}
-
-function import_student_from_filename(string $name): ?string {
-    $stem = pathinfo($name, PATHINFO_FILENAME);
-
-    if (preg_match(
-        '/^([A-Za-z][A-Za-z\x27-]*)_([A-Za-z][A-Za-z\x27-]*)(?:[_ -].*)?$/',
-        $stem,
-        $m
-    )) {
-        return $m[1] . '_' . $m[2];
-    }
-
-    return null;
 }

@@ -1,17 +1,19 @@
-# Mac files
+# macOS files
 .DS_Store
 
-# Environment/config files
+# Local database configuration
+includes/config.php
 .env
-/includes/db.php
 
-# IDE files
+# Editor settings
 .vscode/
 .idea/
 
-# Logs
+# Logs and temporary files
 *.log
-
-# Temporary files
 *.tmp
 *.temp
+
+# Local backups
+*.backup
+*.bak

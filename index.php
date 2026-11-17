@@ -1,104 +1,237 @@
 <?php
 declare(strict_types=1);
+
+/*
+ * Pathways to Scholarships
+ * Iteration 7 — Homepage
+ *
+ * Includes:
+ * - Scholarship quick search
+ * - Session-aware account controls
+ * - Secure logout form
+ * - Shared header, navigation, and footer
+ */
+
+// Load database and security helpers.
+require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/security.php';
+
+// Start or resume the session.
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+
+// Enforce the session timeout if the security helper provides it.
+if (function_exists('check_session_timeout')) {
+    check_session_timeout();
+}
+
+// Determine the current authenticated user.
+$loggedIn = !empty($_SESSION['user_id']);
+
+$userName = '';
+
+if ($loggedIn) {
+    $userName = trim(
+        (string) ($_SESSION['full_name'] ?? '')
+    );
+
+    if ($userName === '') {
+        $userName = (string) ($_SESSION['email'] ?? 'Account');
+    }
+
+    // Generate a CSRF token for secure logout.
+    if (empty($_SESSION['logout_csrf'])) {
+        $_SESSION['logout_csrf'] = bin2hex(random_bytes(32));
+    }
+}
+
+// Load scholarship search filters.
+$pdo = getDBConnection();
+
+$states = $pdo->query(
+    'SELECT state_id, state_name
+     FROM states
+     ORDER BY state_name'
+)->fetchAll();
+
+$grades = $pdo->query(
+    'SELECT grade_id, grade_number
+     FROM grade_levels
+     ORDER BY grade_number'
+)->fetchAll();
+
+$fields = $pdo->query(
+    'SELECT field_id, field_name
+     FROM fields_of_study
+     ORDER BY field_name'
+)->fetchAll();
+
+// Browser title.
+$pageTitle = 'Home | Pathways to Scholarships';
+
+// Load shared page components.
+require_once __DIR__ . '/includes/header.php';
+require_once __DIR__ . '/includes/nav.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Homepage introduction -->
+<header class="bg-light py-5">
+    <div class="container text-center">
 
-    <title>Pathways to Scholarships</title>
-
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/css/site.css" rel="stylesheet">
-</head>
-
-<body>
-
-    <!-- Navigation bar -->
-    <nav class="navbar navbar-expand-lg bg-dark navbar-dark site-nav">
-        <div class="container">
-            <a class="navbar-brand" href="index.php">Pathways to Scholarships</a>
-
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link active" href="index.php">Home</a>
-                <a class="nav-link" href="scholarships.php">Search Scholarships</a>
-                <a class="nav-link" href="about.php">About</a>
-                <a class="nav-link" href="faq.php">FAQ</a>
-                <a class="nav-link" href="contact.php">Contact</a>
-                <a class="nav-link" href="#">Login</a>
-                <?php if (is_admin()): ?>
-                    <a class="nav-link" href="admin/providers.php">Manage Providers</a>
-                    <a class="nav-link" href="admin/audit_log.php">Audit Log</a>
-                <?php endif; ?>
-            </div>
-        </div>
-    </nav>
-
-    <!-- Main header -->
-    <header class="container text-center mt-5">
-        <h1>Find Scholarships For You</h1>
+        <h1 class="display-5 fw-bold">
+            Find Scholarships For You
+        </h1>
 
         <p class="lead">
-            Search for scholarship opportunities that match your education goals.
+            Explore scholarship opportunities based on your state,
+            grade level, and field of study.
         </p>
-    </header>
 
-    <!-- Scholarship search area -->
-    <main class="container mt-5">
-        <div class="row justify-content-center">
-            <div class="col-md-8">
+        <?php if ($loggedIn): ?>
+            <p class="text-primary fw-semibold mb-0">
+                Welcome, <?= e($userName) ?>!
+            </p>
+        <?php endif; ?>
 
-                <div class="card p-4">
+    </div>
+</header>
 
-                    <h2 class="text-center mb-4">Search Scholarships</h2>
+<main>
 
-                    <form action="scholarships.php" method="get">
-                        <div class="mb-3">
-                            <label class="form-label" for="state">State</label>
-                            <select class="form-select" id="state" name="state">
-                                <option value="">Any state</option>
-                                <option value="MN">Minnesota</option>
-                                <option value="WI">Wisconsin</option>
-                                <option value="IA">Iowa</option>
-                            </select>
-                        </div>
 
-                        <div class="mb-3">
-                            <label class="form-label" for="grade">Grade Level</label>
-                            <select class="form-select" id="grade" name="grade">
-                                <option value="">Any grade</option>
-                                <option value="9">9th Grade</option>
-                                <option value="10">10th Grade</option>
-                                <option value="11">11th Grade</option>
-                                <option value="12">12th Grade</option>
-                            </select>
-                        </div>
+    <!-- Scholarship quick search -->
+    <section id="search" class="container py-5">
 
-                        <div class="mb-3">
-                            <label class="form-label" for="field">Field of Study</label>
-                            <input type="text" class="form-control" id="field" name="field"
-                                   maxlength="150" placeholder="Example: STEM">
-                        </div>
+        <h2 class="h3 text-center mb-4">
+            Search Scholarships
+        </h2>
 
-                        <button type="submit" class="btn btn-primary w-100">
-                            Search Scholarships
-                        </button>
-                    </form>
+        <form action="pages/scholarships.php" method="get">
+
+            <input type="hidden" name="search" value="1">
+
+            <div class="row g-3">
+
+                <!-- State -->
+                <div class="col-md-4">
+
+                    <label for="state_id" class="form-label">
+                        State
+                    </label>
+
+                    <select
+                        id="state_id"
+                        name="state_id"
+                        class="form-select"
+                    >
+
+                        <option value="">
+                            All States
+                        </option>
+
+                        <?php foreach ($states as $state): ?>
+                            <option value="<?= (int) $state['state_id'] ?>">
+                                <?= e($state['state_name']) ?>
+                            </option>
+                        <?php endforeach; ?>
+
+                    </select>
 
                 </div>
+
+                <!-- Grade -->
+                <div class="col-md-4">
+
+                    <label for="grade_id" class="form-label">
+                        Grade Level
+                    </label>
+
+                    <select
+                        id="grade_id"
+                        name="grade_id"
+                        class="form-select"
+                    >
+
+                        <option value="">
+                            All Grades
+                        </option>
+
+                        <?php foreach ($grades as $grade): ?>
+                            <option value="<?= (int) $grade['grade_id'] ?>">
+                                Grade <?= (int) $grade['grade_number'] ?>
+                            </option>
+                        <?php endforeach; ?>
+
+                    </select>
+
+                </div>
+
+                <!-- Field of Study -->
+                <div class="col-md-4">
+
+                    <label for="field_id" class="form-label">
+                        Field of Study
+                    </label>
+
+                    <select
+                        id="field_id"
+                        name="field_id"
+                        class="form-select"
+                    >
+
+                        <option value="">
+                            All Fields
+                        </option>
+
+                        <?php foreach ($fields as $field): ?>
+                            <option value="<?= (int) $field['field_id'] ?>">
+                                <?= e($field['field_name']) ?>
+                            </option>
+                        <?php endforeach; ?>
+
+                    </select>
+
+                </div>
+
             </div>
+
+            <div class="text-center mt-4">
+
+                <button
+                    type="submit"
+                    class="btn btn-primary btn-lg"
+                >
+                    Search Scholarships
+                </button>
+
+            </div>
+
+        </form>
+
+    </section>
+
+    <!-- About -->
+    <section id="about" class="bg-light py-5">
+
+        <div class="container text-center">
+
+            <h2 class="h3">
+                About Pathways to Scholarships
+            </h2>
+
+            <p class="mb-0">
+                Our goal is to help middle and high school students
+                and their families discover scholarship opportunities.
+            </p>
+
         </div>
-    </main>
 
-    <!-- Footer -->
-    <footer class="bg-dark text-white text-center p-3 mt-5 site-footer">
-        <p class="mb-0">Pathways to Scholarships - ICS 325 Final Project</p>
-    </footer>
+    </section>
 
-</body>
+</main>
 
-</html>
+<?php
+// Shared footer.
+require_once __DIR__ . '/includes/footer.php';
+?>

@@ -1,114 +1,511 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/includes/security.php';
-require_admin_access();
-require_once __DIR__ . '/includes/audit_logger.php';
-require_once __DIR__ . '/includes/import_reader.php';
-$messages=[]; $results=[];
-$maxFile=5*1024*1024; $maxFiles=10;
-if ($_SERVER['REQUEST_METHOD']==='POST') {
-    if (!verify_csrf($_POST['csrf_token']??null)) {
-        http_response_code(403); $messages[]='Invalid security token. Reload the page and try again.';
-    } elseif (empty($_FILES['scholarship_files']['name']) || !is_array($_FILES['scholarship_files']['name'])) {
-        $messages[]='Choose one or more files.';
+
+/*
+ * Pathways to Scholarships
+ * Iteration 7 — Scholarship Import
+ *
+ * Authorized roles:
+ * - Administrator
+ * - Super-admin
+ *
+ * Supports:
+ * - Multiple CSV and XLSX files
+ * - Excel-to-CSV conversion using SheetJS
+ * - Upload validation
+ * - 29-column scholarship template
+ * - Import batch staging
+ */
+
+$projectRoot = dirname(__DIR__);
+
+require_once $projectRoot . '/includes/security.php';
+
+// Protect both the upload page and POST requests.
+// This replaces the development-only localhost restriction.
+require_role(['Administrator', 'Super-admin']);
+
+require_once $projectRoot . '/includes/db.php';
+require_once $projectRoot . '/includes/import_service.php';
+
+// Resolve URLs relative to this project's folder.
+$baseUrl = rtrim(
+    str_replace(
+        '\\',
+        '/',
+        dirname(dirname($_SERVER['SCRIPT_NAME'] ?? ''))
+    ),
+    '/'
+);
+
+if ($baseUrl === '/' || $baseUrl === '.') {
+    $baseUrl = '';
+}
+
+$errors = [];
+$uploadedBatches = [];
+
+$maxFiles = 5;
+$maxFileSize = 5 * 1024 * 1024;
+$maxTotalSize = 20 * 1024 * 1024;
+
+// Process scholarship uploads.
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+    if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
+
+        $errors[] = 'Invalid form submission. Refresh and try again.';
+
+    } elseif (
+        !isset($_FILES['scholarship_files']) ||
+        !is_array($_FILES['scholarship_files']['name'] ?? null)
+    ) {
+
+        $errors[] = 'Please select at least one file.';
+
     } else {
-        $files=$_FILES['scholarship_files'];
-        if (count($files['name'])>$maxFiles) $messages[]='Maximum 10 files per upload.';
-        else {
-            // Local connection is intentionally excluded from Git. See SETUP_ITERATION3.md.
-            if (!is_file(__DIR__.'/includes/db.php')) {
-                $messages[]='The database connection is unavailable.';
-            } else {
-                require_once __DIR__.'/includes/db.php';
-                foreach ($files['name'] as $i=>$name) {
-                    $name=basename((string)$name);
-                    $result=['file'=>$name,'status'=>'Rejected','count'=>0,'student'=>'','detail'=>''];
-                    try {
-                        if (($files['error'][$i]??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK) throw new InvalidArgumentException('The file upload did not complete successfully.');
-                        $size=(int)$files['size'][$i];
-                        if ($size<1 || $size>$maxFile) throw new InvalidArgumentException('File must be between 1 byte and 5 MB.');
-                        $ext=strtolower(pathinfo($name,PATHINFO_EXTENSION));
-                        if (!in_array($ext,['csv','xlsx'],true)) throw new InvalidArgumentException('Only .csv and .xlsx files are accepted.');
-                        $path=(string)$files['tmp_name'][$i];
-                        if (!is_uploaded_file($path)) throw new InvalidArgumentException('Invalid uploaded file.');
-                        if ($ext==='xlsx') {
-                            $fh=fopen($path,'rb'); $signature=fread($fh,4); fclose($fh);
-                            if ($signature!=="PK\x03\x04") throw new InvalidArgumentException('Invalid .xlsx file type.');
-                        } else {
-                            $fh=fopen($path,'rb'); $sample=fread($fh,2048); fclose($fh);
-                            if (str_contains($sample,"\0")) throw new InvalidArgumentException('Invalid CSV file type.');
-                        }
-                        $rows=import_read_rows($path,$ext);
-                        if (!$rows) throw new InvalidArgumentException('No rows found.');
-                        import_check_headers(array_shift($rows));
-                        $student=import_student_from_filename($name);
-                        if ($student===null) throw new InvalidArgumentException('Rename file LastName_FirstName.csv or LastName_FirstName.xlsx.');
-                        $count=0;
-                        foreach ($rows as $row) {
-                            if (count(array_filter($row,fn($v)=>trim((string)$v)!==''))===0) continue;
-                            if (count($row)!==29) throw new InvalidArgumentException('A data row does not have 29 columns.');
-                            $count++;
-                        }
-                        if ($count===0) throw new InvalidArgumentException('No scholarship records found.');
-                        $pdo->beginTransaction();
-                        try {
-                            $stmt=$pdo->prepare("INSERT INTO import_batches (uploaded_by,file_name,contributing_student,batch_status,total_rows,ready_rows,warning_rows,duplicate_rows,error_rows) VALUES (NULL,?,?, 'staged',?,0,0,0,0)");
-                            $stmt->execute([$name,$student,$count]);
-                            $batchId=(int)$pdo->lastInsertId();
-                            $stmt=$pdo->prepare("INSERT INTO import_staging_rows (import_batch_id,row_number,raw_data,validation_status,validation_message) VALUES (?,?,?,'Pending','Awaiting cleaning and validation')");
-                            $line=1;
-                            foreach ($rows as $row) {
-                                $line++;
-                                if (count(array_filter($row,fn($v)=>trim((string)$v)!==''))===0) continue;
-                                $data=array_combine(import_expected_headers(),$row);
-                                $json=json_encode($data,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE|JSON_THROW_ON_ERROR);
-                                $stmt->execute([$batchId,$line,$json]);
-                            }
-                            log_audit($pdo,'scholarship.import','import_batch',$batchId,[
-                                'batch_id'=>$batchId,
-                                'row_count'=>$count,
-                                'file_name'=>$name,
-                                'status'=>'staged',
-                            ]);
-                            $pdo->commit();
-                        } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
-                        $result=['file'=>$name,'status'=>'Staged','count'=>$count,'student'=>$student,'detail'=>$count===20?'20 scholarships received.':'Expected 20 scholarships; received '.$count.'. Review student submission.'];
-                    } catch (Throwable $e) {
-                        if ($e instanceof InvalidArgumentException) {
-                            $result['detail']=$e->getMessage();
-                        } else {
-                            error_log('Scholarship import staging failed: '.$e->getMessage());
-                            $result['detail']='Unable to process this file right now.';
-                        }
+
+        $files = $_FILES['scholarship_files'];
+        $fileCount = count($files['name']);
+
+        if ($fileCount < 1 || $fileCount > $maxFiles) {
+
+            $errors[] = 'Upload between 1 and 5 files at a time.';
+
+        } elseif (array_sum($files['size']) > $maxTotalSize) {
+
+            $errors[] = 'Combined upload size exceeds 20 MB.';
+
+        } else {
+
+            foreach ($files['name'] as $index => $filename) {
+
+                $uploadError = $files['error'][$index]
+                    ?? UPLOAD_ERR_NO_FILE;
+
+                $fileSize = (int) (
+                    $files['size'][$index] ?? 0
+                );
+
+                $temporaryPath = $files['tmp_name'][$index] ?? '';
+
+                // Validate PHP upload status.
+                if ($uploadError !== UPLOAD_ERR_OK) {
+
+                    $errors[] = $filename . ': Upload failed.';
+                    continue;
+                }
+
+                // Validate file size.
+                if (
+                    $fileSize <= 0 ||
+                    $fileSize > $maxFileSize
+                ) {
+
+                    $errors[] = $filename .
+                        ': File must be 5 MB or smaller.';
+
+                    continue;
+                }
+
+                // The server processes CSV files.
+                // XLSX files are converted in the browser.
+                if (
+                    strtolower(
+                        pathinfo(
+                            $filename,
+                            PATHINFO_EXTENSION
+                        )
+                    ) !== 'csv'
+                ) {
+
+                    $errors[] = $filename .
+                        ': Server accepts CSV only.';
+
+                    continue;
+                }
+
+                // Confirm the file came through PHP upload.
+                if (!is_uploaded_file($temporaryPath)) {
+
+                    $errors[] = $filename .
+                        ': Invalid uploaded file.';
+
+                    continue;
+                }
+
+                // Inspect CSV contents and header count.
+                $handle = fopen($temporaryPath, 'rb');
+
+                if ($handle === false) {
+
+                    $errors[] = $filename .
+                        ': Cannot read uploaded file.';
+
+                    continue;
+                }
+
+                $sample = fread($handle, 4096);
+
+                rewind($handle);
+
+                $header = fgetcsv(
+                    $handle,
+                    0,
+                    ',',
+                    '"',
+                    ''
+                );
+
+                fclose($handle);
+
+                // Reject binary data and incorrect templates.
+                if (
+                    $sample === false ||
+                    str_contains($sample, "\0") ||
+                    $header === false ||
+                    count($header) !== 29
+                ) {
+
+                    $errors[] = $filename .
+                        ': Invalid CSV content or headings.';
+
+                    continue;
+                }
+
+                try {
+
+                    // Preserve the original filename for
+                    // student attribution and import history.
+                    $originalName = $_POST['original_names'][$index]
+                        ?? $filename;
+
+                    if (
+                        !is_string($originalName) ||
+                        strlen($originalName) > 255 ||
+                        trim($originalName) === ''
+                    ) {
+
+                        throw new RuntimeException(
+                            'Invalid original filename.'
+                        );
                     }
-                    $results[]=$result;
+
+                    // Existing Iteration 3 import service.
+                    $batchId = stageScholarshipCSV(
+                        $temporaryPath,
+                        $originalName
+                    );
+
+                    $uploadedBatches[] = [
+                        'id' => $batchId,
+                        'name' => $originalName
+                    ];
+
+                } catch (Throwable $error) {
+
+                    error_log(
+                        'Scholarship upload failed: ' .
+                        $error->getMessage()
+                    );
+
+                    $errors[] = $filename .
+                        ': Could not process this file. ' .
+                        'Check its 29-column template.';
                 }
             }
         }
     }
 }
+
+// Browser title.
+$pageTitle = 'Import Scholarships | Pathways to Scholarships';
+
+// Shared layout.
+require_once $projectRoot . '/includes/header.php';
+require_once $projectRoot . '/includes/nav.php';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Scholarship Import | Pathways to Scholarships</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"></head>
-<body class="bg-light"><main class="container py-5" style="max-width:950px">
-<a href="index.php" class="text-decoration-none">&larr; Home</a>
-<h1 class="mt-3">Import scholarship files</h1>
-<p class="text-muted">Iteration 3: template downloads, upload, and 20-scholarship count check. Uploaded rows are staged for the team's validation pipeline; they are not yet published as scholarships.</p>
-<section class="card mb-4"><div class="card-body"><h2 class="h5">1. Download a template</h2>
-<a class="btn btn-outline-primary me-2" href="../templates/scholarship_import_template.xlsx" download>Download Excel template</a>
-<a class="btn btn-outline-secondary" href="../templates/scholarship_import_template.csv" download>Download CSV template</a>
-<p class="small text-muted mt-2 mb-0">Keep all 29 column headings unchanged. Use a filename like LastName_FirstName.csv.</p></div></section>
-<section class="card mb-4"><div class="card-body"><h2 class="h5">2. Upload files</h2>
-<form method="post" enctype="multipart/form-data">
-<input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-<label class="form-label" for="scholarship_files">CSV or Excel files (up to 10, max 5 MB each)</label>
-<input class="form-control mb-3" type="file" name="scholarship_files[]" id="scholarship_files" accept=".csv,.xlsx" multiple required>
-<button class="btn btn-primary" type="submit">Upload to staging</button>
-</form></div></section>
-<?php foreach ($messages as $message): ?><div class="alert alert-warning"><?= e($message) ?></div><?php endforeach; ?>
-<?php if ($results): ?><section class="card"><div class="card-body"><h2 class="h5">3. Upload results</h2>
-<div class="table-responsive"><table class="table table-striped"><thead><tr><th>File</th><th>Student</th><th>Rows</th><th>Status</th><th>Details</th></tr></thead><tbody>
-<?php foreach ($results as $r): ?><tr><td><?= e($r['file']) ?></td><td><?= e($r['student']) ?></td><td><?= e($r['count']) ?></td><td><?= e($r['status']) ?></td><td><?= e($r['detail']) ?></td></tr><?php endforeach; ?>
-</tbody></table></div></div></section><?php endif; ?>
-</main></body></html>
+
+<main class="container py-5">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+
+        <div>
+            <h1 class="mb-3">Import Scholarships</h1>
+
+            <p class="lead mb-0">
+                Upload CSV or Excel scholarship files for cleaning,
+                validation, and duplicate detection.
+            </p>
+        </div>
+
+        <a
+            href="<?= e($baseUrl . '/admin/dashboard.php') ?>"
+            class="btn btn-outline-secondary"
+        >
+            Back to Admin Dashboard
+        </a>
+
+    </div>
+
+    <!-- Import actions -->
+    <div class="mb-4">
+
+        <a
+            href="<?= e($baseUrl . '/admin/import_template.php') ?>"
+            class="btn btn-outline-primary"
+        >
+            Download 29-Column CSV Template
+        </a>
+
+        <a
+            href="<?= e($baseUrl . '/admin/import_history.php') ?>"
+            class="btn btn-outline-secondary ms-2"
+        >
+            View Import History
+        </a>
+
+    </div>
+
+    <!-- Upload errors -->
+    <?php if ($errors !== []): ?>
+
+        <div class="alert alert-danger" role="alert">
+
+            <ul class="mb-0">
+
+                <?php foreach ($errors as $error): ?>
+
+                    <li><?= e($error) ?></li>
+
+                <?php endforeach; ?>
+
+            </ul>
+
+        </div>
+
+    <?php endif; ?>
+
+    <!-- Successful uploads -->
+    <?php if ($uploadedBatches !== []): ?>
+
+        <div class="alert alert-success" role="status">
+
+            <strong>
+                Files staged successfully:
+            </strong>
+
+            <ul class="mb-0 mt-2">
+
+                <?php foreach ($uploadedBatches as $batch): ?>
+
+                    <li>
+
+                        <?= e($batch['name']) ?> —
+
+                        <a
+                            href="<?= e(
+                                $baseUrl . '/admin/import_validation.php'
+                            ) ?>?batch_id=<?= (int) $batch['id'] ?>"
+                        >
+                            Review Batch #<?= (int) $batch['id'] ?>
+                        </a>
+
+                    </li>
+
+                <?php endforeach; ?>
+
+            </ul>
+
+        </div>
+
+    <?php endif; ?>
+
+    <!-- Upload form -->
+    <form
+        id="scholarshipImportForm"
+        method="post"
+        enctype="multipart/form-data"
+        class="card p-4"
+    >
+
+        <input
+            type="hidden"
+            name="csrf_token"
+            value="<?= e(csrf_token()) ?>"
+        >
+
+        <div class="mb-3">
+
+            <label
+                for="scholarshipFiles"
+                class="form-label"
+            >
+                Select Scholarship Files
+            </label>
+
+            <input
+                type="file"
+                class="form-control"
+                id="scholarshipFiles"
+                name="scholarship_files[]"
+                accept=".csv,.xlsx"
+                multiple
+                required
+            >
+
+            <div class="form-text">
+                Maximum 5 files, 5 MB each, 20 MB combined.
+                Excel files are converted to CSV before upload.
+            </div>
+
+        </div>
+
+        <button
+            type="submit"
+            class="btn btn-primary"
+            id="uploadButton"
+        >
+            Upload and Validate
+        </button>
+
+    </form>
+
+</main>
+
+<!-- Excel conversion library -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+
+<script>
+document.getElementById('scholarshipImportForm')
+    .addEventListener('submit', async function (event) {
+
+    event.preventDefault();
+
+    const input = document.getElementById('scholarshipFiles');
+    const button = document.getElementById('uploadButton');
+    const files = Array.from(input.files);
+
+    const maxFiles = 5;
+    const maxFileSize = 5 * 1024 * 1024;
+    const maxTotalSize = 20 * 1024 * 1024;
+
+    if (files.length < 1 || files.length > maxFiles) {
+        alert('Select between 1 and 5 files.');
+        return;
+    }
+
+    const formData = new FormData();
+
+    formData.append(
+        'csrf_token',
+        document.querySelector('[name="csrf_token"]').value
+    );
+
+    let totalSize = 0;
+
+    button.disabled = true;
+    button.textContent = 'Processing Files...';
+
+    try {
+
+        for (const file of files) {
+
+            if (file.size <= 0 || file.size > maxFileSize) {
+                alert(file.name + ': File must be 5 MB or smaller.');
+                return;
+            }
+
+            let csvFile;
+
+            if (file.name.toLowerCase().endsWith('.xlsx')) {
+
+                if (typeof XLSX === 'undefined') {
+                    alert('Excel conversion library is unavailable.');
+                    return;
+                }
+
+                const buffer = await file.arrayBuffer();
+
+                const workbook = XLSX.read(buffer, {
+                    type: 'array'
+                });
+
+                const worksheetName =
+                    workbook.SheetNames.includes('Sheet2')
+                        ? 'Sheet2'
+                        : workbook.SheetNames[0];
+
+                const worksheet = workbook.Sheets[worksheetName];
+
+                const csv = XLSX.utils.sheet_to_csv(worksheet, {
+                    blankrows: false
+                });
+
+                csvFile = new File(
+                    [csv],
+                    file.name.replace(/\.xlsx$/i, '.csv'),
+                    {type: 'text/csv'}
+                );
+
+            } else if (file.name.toLowerCase().endsWith('.csv')) {
+
+                csvFile = file;
+
+            } else {
+
+                alert('Unsupported file type: ' + file.name);
+                return;
+            }
+
+            // Check converted file size.
+            if (csvFile.size <= 0 || csvFile.size > maxFileSize) {
+                alert(file.name + ': Converted CSV must be 5 MB or smaller.');
+                return;
+            }
+
+            totalSize += csvFile.size;
+
+            if (totalSize > maxTotalSize) {
+                alert('Combined upload size exceeds 20 MB.');
+                return;
+            }
+
+            formData.append('scholarship_files[]', csvFile);
+            formData.append('original_names[]', file.name);
+        }
+
+        const response = await fetch(window.location.pathname, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        });
+
+        // Avoid replacing the page with a login or error response.
+        if (!response.ok) {
+            throw new Error(
+                'Server returned HTTP ' + response.status
+            );
+        }
+
+        const html = await response.text();
+
+        document.open();
+        document.write(html);
+        document.close();
+
+    } catch (error) {
+
+        alert('Upload failed: ' + error.message);
+
+    } finally {
+
+        button.disabled = false;
+        button.textContent = 'Upload and Validate';
+    }
+});
+</script>
+
+<?php
+require_once $projectRoot . '/includes/footer.php';
+?>

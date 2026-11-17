@@ -1,198 +1,268 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../includes/security.php';
-require_admin_access();
-require_once __DIR__ . '/../includes/db.php';
-require_once __DIR__ . '/../includes/provider_manager.php';
+/*
+ * Pathways to Scholarships
+ * Iteration 7 — Provider Merge
+ *
+ * Allows administrators to select a source provider
+ * and a destination provider for merging.
+ *
+ * The actual merge is handled by:
+ * provider_merge_save.php
+ */
 
-if (!isset($pdo) || !($pdo instanceof PDO)) {
-    throw new RuntimeException('Database connection unavailable.');
-}
+$projectRoot = dirname(__DIR__);
 
-$errors = [];
-$preview = null;
-$keepId = 0;
-$duplicateId = 0;
-$providers = [];
+// Load application files.
+require_once $projectRoot . '/includes/db.php';
+require_once $projectRoot . '/includes/security.php';
+require_once $projectRoot . '/includes/config.php';
 
-try {
-    $providers = provider_list($pdo);
-} catch (Throwable $exception) {
-    error_log('Provider merge list failed: ' . $exception->getMessage());
-    http_response_code(500);
-    $errors[] = 'Unable to load providers right now.';
-}
+// Restrict access to administrators.
+require_role(['Administrator', 'Super-admin']);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!verify_csrf($_POST['csrf_token'] ?? null)) {
-        http_response_code(403);
-        $errors[] = 'Your security token is invalid. Reload the page and try again.';
-    } else {
-        $keepId = filter_var(
-            $_POST['keep_provider_id'] ?? null,
-            FILTER_VALIDATE_INT,
-            ['options' => ['min_range' => 1]]
-        ) ?: 0;
-        $duplicateId = filter_var(
-            $_POST['duplicate_provider_id'] ?? null,
-            FILTER_VALIDATE_INT,
-            ['options' => ['min_range' => 1]]
-        ) ?: 0;
+// Database connection.
+$pdo = getDBConnection();
 
-        if ($keepId < 1 || $duplicateId < 1 || $keepId === $duplicateId) {
-            http_response_code(400);
-            $errors[] = 'Choose two different providers.';
-        } elseif (($_POST['action'] ?? '') === 'preview') {
-            try {
-                $preview = provider_merge_preview($pdo, $keepId, $duplicateId);
-            } catch (InvalidArgumentException $exception) {
-                $errors[] = $exception->getMessage();
-            } catch (Throwable $exception) {
-                error_log('Provider merge preview failed: ' . $exception->getMessage());
-                http_response_code(500);
-                $errors[] = 'Unable to preview this provider merge right now.';
-            }
-        } elseif (($_POST['action'] ?? '') === 'merge') {
-            if (($_POST['confirm_merge'] ?? '') !== 'yes') {
-                $errors[] = 'Confirm the merge before continuing.';
-            } else {
-                try {
-                    $merged = merge_providers($pdo, $keepId, $duplicateId);
-                    $_SESSION['provider_merge_success'] = sprintf(
-                        '%s was merged into %s. %d scholarship(s) reassigned.',
-                        $merged['duplicate_name'],
-                        $merged['keep_name'],
-                        $merged['reassigned']
-                    );
-                    header('Location: provider_merge.php?merged=1', true, 303);
-                    exit;
-                } catch (InvalidArgumentException $exception) {
-                    $errors[] = $exception->getMessage();
-                } catch (Throwable $exception) {
-                    error_log('Provider merge failed: ' . $exception->getMessage());
-                    http_response_code(500);
-                    $errors[] = 'Unable to merge these providers. No changes were saved.';
-                }
-            }
-        } else {
-            http_response_code(400);
-            $errors[] = 'Invalid provider action.';
-        }
+// Selected source provider.
+$sourceId = filter_input(
+    INPUT_GET,
+    'source_id',
+    FILTER_VALIDATE_INT
+);
+
+$sourceId = $sourceId ?: 0;
+
+// Load all providers and scholarship counts.
+$sql = "
+    SELECT
+        p.provider_id,
+        p.provider_name,
+        p.provider_type_id,
+        pt.provider_type_name AS type_name,
+        COUNT(s.scholarship_id) AS scholarship_count
+
+    FROM providers AS p
+
+    LEFT JOIN provider_types AS pt
+        ON pt.provider_type_id = p.provider_type_id
+
+    LEFT JOIN scholarships AS s
+        ON s.provider_id = p.provider_id
+
+    GROUP BY
+        p.provider_id,
+        p.provider_name,
+        p.provider_type_id,
+        pt.provider_type_name
+
+    ORDER BY
+        p.provider_name ASC
+";
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute();
+
+$providers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Identify selected source provider.
+$sourceProvider = null;
+
+foreach ($providers as $provider) {
+    if ((int) $provider['provider_id'] === $sourceId) {
+        $sourceProvider = $provider;
+        break;
     }
-} else {
-    $duplicateId = filter_input(
-        INPUT_GET,
-        'duplicate_id',
-        FILTER_VALIDATE_INT,
-        ['options' => ['min_range' => 1]]
-    ) ?: 0;
 }
 
-$success = '';
-if (($_GET['merged'] ?? '') === '1' && isset($_SESSION['provider_merge_success'])) {
-    $success = (string) $_SESSION['provider_merge_success'];
-    unset($_SESSION['provider_merge_success']);
-}
+// Page title.
+$pageTitle = 'Merge Providers | Pathways to Scholarships';
+
+// Shared layout.
+require_once $projectRoot . '/includes/header.php';
+require_once $projectRoot . '/includes/nav.php';
 ?>
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Merge Providers | Pathways to Scholarships</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-light">
+
 <main class="container py-5">
-    <nav class="mb-4" aria-label="Administrator navigation">
-        <a href="providers.php">Manage Providers</a> |
-        <a href="audit_log.php">Audit Log</a>
-    </nav>
-    <h1>Merge duplicate providers</h1>
-    <p class="text-muted">Select the provider record to keep and the duplicate record to merge into it.</p>
 
-    <?php if ($success !== ''): ?>
-        <div class="alert alert-success" role="status"><?= e($success) ?></div>
-    <?php endif; ?>
-    <?php foreach ($errors as $error): ?>
-        <div class="alert alert-danger" role="alert"><?= e($error) ?></div>
-    <?php endforeach; ?>
+    <h1 class="mb-3">
+        Merge Providers
+    </h1>
 
-    <form method="post" action="provider_merge.php" class="card card-body mb-4">
-        <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-        <input type="hidden" name="action" value="preview">
-        <div class="row g-3">
-            <div class="col-md-6">
-                <label class="form-label" for="keep-provider">Provider to keep</label>
-                <select class="form-select" id="keep-provider" name="keep_provider_id" required>
-                    <option value="">Select provider</option>
-                    <?php foreach ($providers as $provider): ?>
-                        <option value="<?= (int) $provider['provider_id'] ?>"
-                            <?= $keepId === (int) $provider['provider_id'] ? 'selected' : '' ?>>
-                            #<?= (int) $provider['provider_id'] ?> — <?= e($provider['provider_name']) ?>
-                            (<?= (int) $provider['scholarship_count'] ?> scholarships)
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-md-6">
-                <label class="form-label" for="duplicate-provider">Duplicate provider to merge</label>
-                <select class="form-select" id="duplicate-provider" name="duplicate_provider_id" required>
-                    <option value="">Select duplicate</option>
-                    <?php foreach ($providers as $provider): ?>
-                        <option value="<?= (int) $provider['provider_id'] ?>"
-                            <?= $duplicateId === (int) $provider['provider_id'] ? 'selected' : '' ?>>
-                            #<?= (int) $provider['provider_id'] ?> — <?= e($provider['provider_name']) ?>
-                            (<?= (int) $provider['scholarship_count'] ?> scholarships)
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-12">
-                <button class="btn btn-primary" type="submit">Preview merge</button>
-            </div>
+    <p class="lead">
+        Merge duplicate scholarship providers into one
+        existing provider record.
+    </p>
+
+    <div class="alert alert-warning">
+        <strong>Important:</strong>
+        Merging providers may update scholarship records
+        and remove the duplicate provider.
+        Confirm your selections carefully before proceeding.
+    </div>
+
+    <?php if (count($providers) < 2): ?>
+
+        <div class="alert alert-info">
+            At least two providers are required to perform a merge.
         </div>
-    </form>
 
-    <?php if ($preview !== null): ?>
-        <section class="card card-body border-warning">
-            <h2 class="h4">Confirm provider merge</h2>
-            <p>The duplicate provider will be removed after its scholarships are reassigned. This cannot be undone.</p>
-            <div class="table-responsive">
-                <table class="table table-bordered bg-white">
-                    <thead><tr><th scope="col">Role</th><th scope="col">Provider</th><th scope="col">Type</th><th scope="col">Scholarships</th></tr></thead>
-                    <tbody>
-                    <tr>
-                        <th scope="row">Keep</th>
-                        <td><?= e($preview['keep']['provider_name']) ?></td>
-                        <td><?= e($preview['keep']['provider_type_name'] ?? 'Unspecified') ?></td>
-                        <td><?= (int) $preview['keep']['scholarship_count'] ?></td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Merge</th>
-                        <td><?= e($preview['duplicate']['provider_name']) ?></td>
-                        <td><?= e($preview['duplicate']['provider_type_name'] ?? 'Unspecified') ?></td>
-                        <td><?= (int) $preview['duplicate']['scholarship_count'] ?></td>
-                    </tr>
-                    </tbody>
-                </table>
+    <?php else: ?>
+
+        <div class="card shadow-sm">
+
+            <div class="card-header bg-light">
+                <h2 class="h5 mb-0">
+                    Select Providers
+                </h2>
             </div>
-            <form method="post" action="provider_merge.php">
-                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-                <input type="hidden" name="action" value="merge">
-                <input type="hidden" name="keep_provider_id" value="<?= (int) $keepId ?>">
-                <input type="hidden" name="duplicate_provider_id" value="<?= (int) $duplicateId ?>">
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" name="confirm_merge" value="yes" id="confirm-merge" required>
-                    <label class="form-check-label" for="confirm-merge">
-                        I confirm that the duplicate provider should be merged into the provider being kept.
-                    </label>
-                </div>
-                <button class="btn btn-danger" type="submit">Confirm merge</button>
-            </form>
-        </section>
+
+            <div class="card-body">
+
+                <form
+                    method="POST"
+                    action="provider_merge_save.php"
+                >
+
+                    <!-- CSRF protection -->
+                    <input
+                        type="hidden"
+                        name="csrf_token"
+                        value="<?= e(csrf_token()) ?>"
+                    >
+
+                    <!-- Source provider -->
+                    <div class="mb-4">
+
+                        <label
+                            for="source_provider_id"
+                            class="form-label fw-semibold"
+                        >
+                            Source Provider (Duplicate)
+                        </label>
+
+                        <select
+                            name="source_provider_id"
+                            id="source_provider_id"
+                            class="form-select"
+                            required
+                        >
+
+                            <option value="">
+                                Select the provider to merge
+                            </option>
+
+                            <?php foreach ($providers as $provider): ?>
+
+                                <option
+                                    value="<?= (int) $provider['provider_id'] ?>"
+                                    <?= (int) $provider['provider_id'] === $sourceId
+                                        ? 'selected'
+                                        : '' ?>
+                                >
+                                    <?= e($provider['provider_name']) ?>
+                                    (<?= (int) $provider['scholarship_count'] ?> scholarships)
+                                </option>
+
+                            <?php endforeach; ?>
+
+                        </select>
+
+                        <div class="form-text">
+                            This provider will be merged into the destination provider.
+                        </div>
+
+                    </div>
+
+                    <!-- Destination provider -->
+                    <div class="mb-4">
+
+                        <label
+                            for="target_provider_id"
+                            class="form-label fw-semibold"
+                        >
+                            Destination Provider (Keep)
+                        </label>
+
+                        <select
+                            name="target_provider_id"
+                            id="target_provider_id"
+                            class="form-select"
+                            required
+                        >
+
+                            <option value="">
+                                Select the provider to keep
+                            </option>
+
+                            <?php foreach ($providers as $provider): ?>
+
+                                <?php
+                                $providerId = (int) $provider['provider_id'];
+                                ?>
+
+                                <?php if ($providerId !== $sourceId): ?>
+
+                                    <option value="<?= $providerId ?>">
+                                        <?= e($provider['provider_name']) ?>
+                                        (<?= (int) $provider['scholarship_count'] ?> scholarships)
+                                    </option>
+
+                                <?php endif; ?>
+
+                            <?php endforeach; ?>
+
+                        </select>
+
+                        <div class="form-text">
+                            Scholarships should be reassigned to this provider.
+                        </div>
+
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="d-flex gap-2">
+
+                        <button
+                            type="submit"
+                            class="btn btn-danger"
+                            onclick="return confirm('Are you sure you want to merge these providers? This action may not be reversible.');"
+                        >
+                            Merge Providers
+                        </button>
+
+                        <a
+                            href="providers.php"
+                            class="btn btn-outline-secondary"
+                        >
+                            Cancel
+                        </a>
+
+                    </div>
+
+                </form>
+
+            </div>
+
+        </div>
+
     <?php endif; ?>
+
+    <!-- Back to provider management -->
+    <div class="mt-4">
+
+        <a
+            href="providers.php"
+            class="btn btn-outline-primary"
+        >
+            Back to Provider Management
+        </a>
+
+    </div>
+
 </main>
-</body>
-</html>
+
+<?php
+require_once $projectRoot . '/includes/footer.php';
+?>

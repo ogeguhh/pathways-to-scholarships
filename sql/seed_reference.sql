@@ -1,27 +1,17 @@
-
--- ============================================
 -- Pathways to Scholarships
--- Iteration 2 - Reference Data
--- ============================================
+-- Iteration 2: Reference Data
+-- This file will contain the required lookup values.
 
--- 1. User Roles
--- INSERT IGNORE prevents duplicate entries
--- if the script is executed again.
+-- Five application roles
+INSERT INTO roles (role_name) VALUES
+('Visitor'),
+('Student'),
+('Parent'),
+('Administrator'),
+('Super-admin');
 
-INSERT IGNORE INTO roles (role_name)
-VALUES
-    ('Visitor'),
-    ('Student'),
-    ('Parent'),
-    ('Administrator'),
-    ('Super-admin');
-
-
--- 2. U.S. States + National
--- NA is our project-specific code for National.
-
-INSERT IGNORE INTO states (state_code, state_name)
-VALUES
+-- All 50 U.S. states plus National
+INSERT INTO states (state_code, state_name) VALUES
 ('AL', 'Alabama'),
 ('AK', 'Alaska'),
 ('AZ', 'Arizona'),
@@ -74,12 +64,8 @@ VALUES
 ('WY', 'Wyoming'),
 ('NA', 'National');
 
-
--- 3. Grade Levels (6–12)
--- Supports middle school and high school students.
-
-INSERT IGNORE INTO grade_levels (grade_level)
-VALUES
+-- Grade levels 6 through 12
+INSERT INTO grade_levels (grade_number) VALUES
 (6),
 (7),
 (8),
@@ -88,54 +74,46 @@ VALUES
 (11),
 (12);
 
-
--- 4. Scholarship Provider Types
--- Based on the ICS 325 project requirements.
-
-INSERT IGNORE INTO provider_types (provider_type_name)
-VALUES
+-- Scholarship provider types from Section 6.1
+INSERT INTO provider_types (type_name) VALUES
 ('Foundation/nonprofit'),
-('corporation'),
-('college/university'),
-('government agency'),
-('professional association'),
-('community organization'),
-('other');
+('Corporation'),
+('College/university'),
+('Government agency'),
+('Professional association'),
+('Community organization'),
+('Other');
 
-
--- 5. Scholarship Categories
--- Initial categories based on project examples.
--- Additional categories can be added later.
-
-INSERT IGNORE INTO categories (category_name)
-VALUES
-('Merit-based'),
-('Need-based'),
+-- Scholarship categories
+INSERT INTO categories (category_name) VALUES
+('Merit-Based'),
+('Need-Based'),
 ('Community Service'),
 ('Leadership'),
 ('STEM'),
-('Arts'),
-('Athletics');
+('Arts');
 
-
--- 6. Fields of Study
--- Initial fields based on ICS 325 project examples.
--- Additional fields can be added later.
-
-INSERT IGNORE INTO fields_of_study (field_name)
-VALUES
-('STEM'),
+-- Fields of study for scholarship searching
+INSERT INTO fields_of_study (field_name) VALUES
+('General / Any Field'),
+('Science'),
+('Technology'),
+('Engineering'),
+('Mathematics'),
+('Computer Science'),
+('Healthcare'),
+('Nursing'),
+('Business'),
+('Education'),
 ('Arts'),
 ('Humanities'),
-('Business'),
-('Health');
+('Social Sciences'),
+('Agriculture'),
+('Skilled Trades');
 
-
--- 7. National Scholarship Themes
--- All 29 themes from the official student assignments document.
-
-INSERT IGNORE INTO national_themes (theme_name)
-VALUES
+-- Official 29 national scholarship themes
+-- Source: Pathways to Scholarships Student Assignments, Section 4
+INSERT INTO national_themes (theme_name) VALUES
 ('Arts, music, and design'),
 ('Asian American and Pacific Islander heritage'),
 ('Black/African American heritage'),
@@ -165,5 +143,3 @@ VALUES
 ('Students with disabilities'),
 ('Women-focused'),
 ('Writing, journalism, and communications');
-
-

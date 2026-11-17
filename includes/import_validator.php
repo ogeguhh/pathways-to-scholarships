@@ -1,155 +1,332 @@
 <?php
 declare(strict_types=1);
-/** FR-IMP-04/05: validate a 29-column scholarship row; preserve the original row separately. */
 
-function imp_clean(string $value): string {
-    $value = str_replace(["\xC2\xA0", "\xE2\x80\xAF", "\xEF\xBB\xBF"], ' ', $value);
-    return trim(preg_replace('/\s+/u', ' ', $value) ?? $value);
+/*
+ * Pathways to Scholarships
+ * Iteration 3 — Import Validation
+ *
+ * Cleans spreadsheet values and identifies missing or invalid data.
+ * Duplicate detection is handled separately by import_service.php.
+ */
+
+require_once __DIR__ . '/import_fields.php';
+
+// Remove extra whitespace, including non-breaking spaces from Excel.
+function cleanImportText(mixed $value): string
+{
+    if ($value === null) {
+        return '';
+    }
+
+    $text = trim((string) $value);
+    $text = str_replace("\xC2\xA0", ' ', $text);
+
+    return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
 }
-function imp_field(array $row, string $label): string {
-    foreach ($row as $key => $value) {
-        if (strcasecmp(imp_clean((string)$key), $label) === 0) return (string)$value;
+
+// Convert common Yes/No/Unknown answers to consistent values.
+// Ambiguous answers remain Unknown rather than being guessed.
+function cleanImportYesNo(mixed $value): string
+{
+    $text = strtolower(cleanImportText($value));
+
+    if (in_array($text, ['yes', 'y', 'true', '1'], true)) {
+        return 'Yes';
     }
-    return '';
+
+    if (in_array($text, ['no', 'n', 'false', '0'], true)) {
+        return 'No';
+    }
+
+    return 'Unknown';
 }
-function imp_state_codes(PDO $pdo): array {
-    $map = ['national' => 'NA', 'na' => 'NA'];
-    foreach ($pdo->query('SELECT state_code, state_name FROM states') as $state) {
-        $map[strtolower($state['state_code'])] = strtoupper($state['state_code']);
-        $map[strtolower($state['state_name'])] = strtoupper($state['state_code']);
+
+// Convert amounts such as "$1,000" into 1000.00.
+// Descriptions such as "Varies" remain null.
+function cleanImportMoney(mixed $value): ?float
+{
+    $text = cleanImportText($value);
+
+    if ($text === '') {
+        return null;
     }
-    return $map;
+
+    if (!preg_match('/^\$?\s*([\d,]+(?:\.\d{1,2})?)$/', $text, $matches)) {
+        return null;
+    }
+
+    return (float) str_replace(',', '', $matches[1]);
 }
-function imp_date(string $value): ?string {
-    if ($value === '' || strcasecmp($value, 'rolling') === 0 || strcasecmp($value, 'n/a') === 0) return null;
-    foreach (['!Y-m-d', '!m/d/Y', '!n/j/Y', '!m-d-Y', '!n-j-Y'] as $format) {
-        $d = DateTimeImmutable::createFromFormat($format, $value);
-        if ($d && $d->format(ltrim($format, '!')) === $value) return $d->format('Y-m-d');
+
+// Accept real spreadsheet dates and common date formats.
+// Uncertain or descriptive dates remain null.
+function cleanImportDate(mixed $value): ?string
+{
+    $text = cleanImportText($value);
+
+    if ($text === '' || strtolower($text) === 'unknown') {
+        return null;
     }
-    // Excel stores dates as serial numbers; accept only plausible serials.
-    if (ctype_digit($value) && (int)$value >= 20000 && (int)$value <= 90000) {
-        return (new DateTimeImmutable('1899-12-30'))->modify('+' . (int)$value . ' days')->format('Y-m-d');
+
+    foreach (['!Y-m-d', '!Y-m-d H:i:s', '!m/d/Y', '!n/j/Y', '!F j, Y', '!M j, Y'] as $format) {
+        $date = DateTimeImmutable::createFromFormat($format, $text);
+        $errors = DateTimeImmutable::getLastErrors();
+
+        if ($date !== false && ($errors === false ||
+            ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) {
+            return $date->format('Y-m-d');
+        }
     }
+
     return null;
 }
-function imp_amount(string $value): ?string {
-    if ($value === '') return null;
-    $v = str_replace(['$', ',', ' '], '', $value);
-    if (!preg_match('/^\d+(?:\.\d{1,2})?$/', $v)) return null;
-    return number_format((float)$v, 2, '.', '');
-}
-function imp_grades(string $value): ?string {
-    if ($value === '') return null;
-    $value = preg_replace('/\b(?:grades?|th|st|nd|rd)\b/i', '', $value) ?? $value;
-    $value = str_replace(['–', '—'], '-', $value);
+
+// Extract grades 6 through 12 from common spreadsheet formats.
+function cleanImportGrades(mixed $value): array
+{
+    $text = strtolower(cleanImportText($value));
     $grades = [];
-    foreach (preg_split('/[,;\/]+/', $value) as $part) {
-        $part = trim($part);
-        if (preg_match('/^(\d{1,2})\s*-\s*(\d{1,2})$/', $part, $m)) {
-            if ((int)$m[1] > (int)$m[2]) return null;
-            foreach (range((int)$m[1], (int)$m[2]) as $n) $grades[] = $n;
-        } elseif (preg_match('/^\d{1,2}$/', $part)) $grades[] = (int)$part;
-        else return null;
+
+    if (preg_match('/\b(?:grades?|gr)\s*(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\b/u', $text, $match)
+        || preg_match('/^(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})$/u', $text, $match)) {
+        $start = (int) $match[1];
+        $end = (int) $match[2];
+
+        if ($start <= $end) {
+            for ($grade = max(6, $start); $grade <= min(12, $end); $grade++) {
+                $grades[] = $grade;
+            }
+        }
+    } else {
+        preg_match_all('/(?<!\d)(?:6|7|8|9|10|11|12)(?!\d)/', $text, $matches);
+        $grades = array_map('intval', $matches[0]);
     }
-    $grades = array_values(array_unique($grades)); sort($grades);
-    foreach ($grades as $grade) if ($grade < 6 || $grade > 12) return null;
-    return $grades ? implode(',', $grades) : null;
+
+    return array_values(array_unique($grades));
 }
-function imp_yes_no(string $value): ?string {
-    $v = strtolower($value);
-    if ($v === '' || in_array($v, ['unknown', 'unsure', 'n/a', 'not specified'], true)) return 'Unknown';
-    if (in_array($v, ['yes', 'y', 'true', '1'], true)) return 'Yes';
-    if (in_array($v, ['no', 'n', 'false', '0'], true)) return 'No';
+
+// Recognize a state abbreviation or full state name.
+// Descriptions such as "Tennessee (South)" are supported.
+function cleanImportState(mixed $value): ?string
+{
+    static $states = [
+        'AL'=>'Alabama','AK'=>'Alaska','AZ'=>'Arizona','AR'=>'Arkansas',
+        'CA'=>'California','CO'=>'Colorado','CT'=>'Connecticut',
+        'DE'=>'Delaware','FL'=>'Florida','GA'=>'Georgia','HI'=>'Hawaii',
+        'ID'=>'Idaho','IL'=>'Illinois','IN'=>'Indiana','IA'=>'Iowa',
+        'KS'=>'Kansas','KY'=>'Kentucky','LA'=>'Louisiana','ME'=>'Maine',
+        'MD'=>'Maryland','MA'=>'Massachusetts','MI'=>'Michigan',
+        'MN'=>'Minnesota','MS'=>'Mississippi','MO'=>'Missouri',
+        'MT'=>'Montana','NE'=>'Nebraska','NV'=>'Nevada',
+        'NH'=>'New Hampshire','NJ'=>'New Jersey','NM'=>'New Mexico',
+        'NY'=>'New York','NC'=>'North Carolina','ND'=>'North Dakota',
+        'OH'=>'Ohio','OK'=>'Oklahoma','OR'=>'Oregon','PA'=>'Pennsylvania',
+        'RI'=>'Rhode Island','SC'=>'South Carolina','SD'=>'South Dakota',
+        'TN'=>'Tennessee','TX'=>'Texas','UT'=>'Utah','VT'=>'Vermont',
+        'VA'=>'Virginia','WA'=>'Washington','WV'=>'West Virginia',
+        'WI'=>'Wisconsin','WY'=>'Wyoming'
+    ];
+
+    $text = cleanImportText($value);
+    $upper = strtoupper($text);
+
+    if ($upper === 'NATIONAL') {
+        return 'NA';
+    }
+
+    if (isset($states[$upper])) {
+        return $upper;
+    }
+
+    foreach ($states as $code => $name) {
+        if (strcasecmp($text, $name) === 0 ||
+            preg_match('/^' . preg_quote($name, '/') . '\s*\(/i', $text)) {
+            return $code;
+        }
+    }
+
     return null;
 }
-/** Returns ['clean'=>..., 'status'=>Ready|Warning|Error, 'reasons'=>...]. */
-function import_validate_row(array $raw, array $stateMap): array {
-    $clean = []; $errors = []; $warnings = [];
-    foreach ($raw as $key => $value) $clean[$key] = imp_clean((string)$value);
-    $name = imp_field($clean, 'Scholarship name');
-    $provider = imp_field($clean, 'Scholarship provider/organization');
-    $url = imp_field($clean, 'Official scholarship URL');
-    if ($name === '') $errors[] = 'Scholarship name is required';
-    if ($provider === '') $errors[] = 'Scholarship provider/organization is required';
-    if ($url === '' || !filter_var($url, FILTER_VALIDATE_URL) || !in_array(strtolower((string)parse_url($url, PHP_URL_SCHEME)), ['http','https'], true) || !parse_url($url, PHP_URL_HOST)) {
-        $errors[] = 'Official scholarship URL must be a valid http(s) URL';
+
+// Normalize official URLs for duplicate comparisons.
+// Remove fragments, default ports, and trailing slashes.
+function normalizeImportUrl(mixed $value): ?string
+{
+    $url = cleanImportText($value);
+
+    if (!filter_var($url, FILTER_VALIDATE_URL)) {
+        return null;
     }
-    $stateKey = 'State/region';
-    $stateRaw = imp_field($clean, $stateKey);
-    if ($stateRaw !== '') {
-        $parts = preg_split('/\s*[,;|]+\s*/', $stateRaw);
-        $codes = [];
-        foreach ($parts as $part) {
-            $code = $stateMap[strtolower(trim($part))] ?? null;
-            if ($code === null) $errors[] = "Unrecognized state/region: $part";
-            else $codes[] = $code;
-        }
-        $codes = array_values(array_unique($codes));
-        $clean[$stateKey] = implode(',', $codes);
-    } else $codes = [];
-    $residency = imp_field($clean, 'Residency requirement');
-    // Only infer multi-state eligibility when two or more state codes are explicitly listed.
-    $residencyCodes = [];
-    foreach (preg_split('/\s*[,;|]+\s*/', $residency) as $part) {
-        $code = $stateMap[strtolower(trim($part))] ?? null;
-        if ($code && $code !== 'NA') $residencyCodes[$code] = true;
+
+    $parts = parse_url($url);
+
+    if (!is_array($parts) ||
+        !in_array(strtolower($parts['scheme'] ?? ''), ['http', 'https'], true) ||
+        empty($parts['host'])) {
+        return null;
     }
-    foreach ($codes as $code) if ($code !== 'NA') $residencyCodes[$code] = true;
-    $declared = strtolower(imp_field($clean, 'National vs. state/local'));
-    $classification = in_array($declared, ['national', 'state/local', 'state-local', 'state', 'local'], true)
-        ? ($declared === 'national' ? 'National' : 'State/Local') : null;
-    if ($classification === null) $errors[] = 'National vs. state/local must be National or State/Local';
-    if (count($residencyCodes) >= 2 || in_array('NA', $codes, true)) {
-        if ($classification !== 'National') $warnings[] = 'Classification corrected to National based on multi-state/National eligibility';
-        $classification = 'National';
-    } elseif (count($residencyCodes) === 1) {
-        if ($classification === 'National') $warnings[] = 'Classification corrected to State/Local based on single-state eligibility';
-        $classification = 'State/Local';
-    } else $warnings[] = 'Residency does not explicitly establish one-state versus multi-state eligibility; verify classification';
-    $clean['National vs. state/local'] = $classification ?? '';
-    $gradeKey = 'Eligible grade levels';
-    $grade = imp_field($clean, $gradeKey);
-    if ($grade === '') $errors[] = 'Eligible grade levels are required';
-    else {
-        $parsed = imp_grades($grade);
-        if ($parsed === null) $errors[] = 'Eligible grades must be within 6–12 (e.g. 9-12)';
-        else $clean[$gradeKey] = $parsed;
+
+    $scheme = strtolower($parts['scheme']);
+    $host = strtolower($parts['host']);
+    $port = $parts['port'] ?? null;
+
+    $portText = '';
+    if ($port !== null &&
+        !(($scheme === 'http' && $port === 80) ||
+          ($scheme === 'https' && $port === 443))) {
+        $portText = ':' . $port;
     }
-    foreach (['Award amount', 'Maximum potential value'] as $key) {
-        $value = imp_field($clean, $key);
-        if ($value !== '') {
-            // Support simple amount ranges for award amount.
-            if ($key === 'Award amount' && preg_match('/^\s*(\$?[\d,.]+)\s*(?:-|–|to)\s*(\$?[\d,.]+)\s*$/i', $value, $m)) {
-                $min = imp_amount($m[1]); $max = imp_amount($m[2]);
-                if ($min === null || $max === null || (float)$min > (float)$max) $errors[] = 'Invalid award amount range';
-                else $clean[$key] = $min . '-' . $max;
-            } else {
-                $amount = imp_amount($value);
-                if ($amount === null) $errors[] = "Invalid amount: $key";
-                else $clean[$key] = $amount;
+
+    $path = rtrim($parts['path'] ?? '', '/');
+
+    // Remove tracking parameters while preserving scholarship identifiers.
+    $query = '';
+
+    if (isset($parts['query'])) {
+        parse_str($parts['query'], $parameters);
+
+        foreach (array_keys($parameters) as $key) {
+            $lowerKey = strtolower($key);
+
+            if (str_starts_with($lowerKey, 'utm_') ||
+                in_array($lowerKey, [
+                    'fbclid',
+                    'gclid',
+                    'msclkid',
+                    'mc_cid',
+                    'mc_eid'
+                ], true)) {
+                unset($parameters[$key]);
             }
-        } elseif ($key === 'Award amount') $warnings[] = 'Award amount is missing';
-    }
-    foreach (['Application open date', 'Application deadline', 'Verification date'] as $key) {
-        $value = imp_field($clean, $key);
-        if ($value === '') {
-            if ($key === 'Verification date') $warnings[] = 'Verification date is missing';
-            continue;
         }
-        if ($key === 'Application deadline' && strtolower($value) === 'rolling') continue;
-        $date = imp_date($value);
-        if ($date === null) $errors[] = "Invalid date: $key";
-        else $clean[$key] = $date;
+
+        if ($parameters !== []) {
+            $query = '?' . http_build_query($parameters);
+        }
     }
-    foreach (['Renewable', 'Financial need required', 'Essay required', 'Recommendation required', 'Transcript/test score required', 'Community service requirement', 'Leadership requirement'] as $key) {
-        $value = imp_yes_no(imp_field($clean, $key));
-        if ($value === null) $errors[] = "Invalid Yes/No/Unknown value: $key";
-        else $clean[$key] = $value;
+
+    return $scheme . '://' . $host . $portText . $path . $query;
+}
+
+// Clean one scholarship row and return its validation result.
+function validateScholarshipRow(array $row): array
+{
+    $cleaned = [];
+    $errors = [];
+    $warnings = [];
+
+    foreach (scholarshipImportFields() as $field) {
+        $cleaned[$field] = cleanImportText($row[$field] ?? '');
     }
-    $count = imp_field($clean, 'Number of awards');
-    if ($count !== '' && (!ctype_digit($count) || (int)$count < 0)) $errors[] = 'Number of awards must be a nonnegative integer';
-    $gpa = imp_field($clean, 'Minimum GPA');
-    if ($gpa !== '' && (!is_numeric($gpa) || (float)$gpa < 0 || (float)$gpa > 4)) $errors[] = 'Minimum GPA must be between 0 and 4';
-    $status = $errors ? 'Error' : ($warnings ? 'Warning' : 'Ready');
-    return ['clean'=>$clean, 'status'=>$status, 'reasons'=>array_merge($errors, $warnings)];
+
+    $name = $cleaned['Scholarship name'];
+    $provider = $cleaned['Scholarship provider/organization'];
+    $url = $cleaned['Official scholarship URL'];
+
+    if ($name === '') {
+        $errors[] = 'Scholarship name is missing.';
+    }
+
+    if ($provider === '') {
+        $errors[] = 'Scholarship provider is missing.';
+    }
+
+    if (mb_strlen($name) > 255 || mb_strlen($provider) > 255) {
+        $errors[] = 'Scholarship name or provider exceeds 255 characters.';
+    }
+
+    $normalizedUrl = normalizeImportUrl($url);
+
+    if ($normalizedUrl === null) {
+        $errors[] = 'Official scholarship URL is missing or invalid.';
+    } elseif (strlen($normalizedUrl) > 1000) {
+        $errors[] = 'Official scholarship URL is too long.';
+    }
+
+    $cleaned['normalized_url'] = $normalizedUrl;
+
+    $state = cleanImportState($cleaned['State/region']);
+    $cleaned['state_code'] = $state;
+
+    $classification = strtolower($cleaned['National vs. state/local']);
+
+    if (str_contains($classification, 'regional')) {
+        // Regional eligibility may span several states.
+        // Keep it out of the national category until reviewed.
+        $cleaned['classification'] = 'State/Local';
+        $warnings[] = 'Regional scholarship: verify eligible states.';
+    } elseif (str_contains($classification, 'national')) {
+        $cleaned['classification'] = 'National';
+    } elseif (str_contains($classification, 'state') ||
+              str_contains($classification, 'local')) {
+        $cleaned['classification'] = 'State/Local';
+    } else {
+        $cleaned['classification'] = null;
+        $warnings[] = 'National/state classification needs review.';
+    }
+
+    if ($state === null) {
+        $warnings[] = 'State or region needs review.';
+    }
+
+    if ($state === 'NA' && $cleaned['classification'] === 'State/Local') {
+        $warnings[] = 'National state conflicts with State/Local classification.';
+    }
+
+    $grades = cleanImportGrades($cleaned['Eligible grade levels']);
+    $cleaned['grades'] = $grades;
+
+    if ($grades === []) {
+        $warnings[] = 'Eligible grade levels need review.';
+    }
+
+    foreach ([
+        'Renewable (Yes/No/Unknown)',
+        'Financial need required (Yes/No/Unknown)',
+        'Essay required',
+        'Recommendation required',
+        'Transcript/test score required',
+        'Community service requirement',
+        'Leadership requirement'
+    ] as $field) {
+        $cleaned[$field . '_normalized'] = cleanImportYesNo($cleaned[$field]);
+    }
+
+    foreach (['Award amount', 'Maximum potential value'] as $field) {
+        $amount = cleanImportMoney($cleaned[$field]);
+        $cleaned[$field . '_numeric'] = $amount;
+
+        if ($amount === null && $cleaned[$field] !== '') {
+            $warnings[] = $field . ' is descriptive or needs review.';
+        }
+    }
+
+    foreach ([
+        'Application open date (if known)',
+        'Application deadline',
+        'Verification date'
+    ] as $field) {
+        $date = cleanImportDate($cleaned[$field]);
+        $cleaned[$field . '_date'] = $date;
+
+        if ($date === null && $cleaned[$field] !== '') {
+            $warnings[] = $field . ' is unknown or needs review.';
+        }
+    }
+
+    $status = 'Ready';
+
+    if ($errors !== []) {
+        $status = 'Error';
+    } elseif ($warnings !== []) {
+        $status = 'Warning';
+    }
+
+    return [
+        'status' => $status,
+        'errors' => $errors,
+        'warnings' => $warnings,
+        'message' => implode(' ', array_merge($errors, $warnings)),
+        'cleaned_data' => $cleaned,
+    ];
 }
