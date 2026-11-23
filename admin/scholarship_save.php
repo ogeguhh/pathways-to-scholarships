@@ -18,13 +18,7 @@ require_once $projectRoot . '/includes/import_validator.php';
 
 // Authentication is scheduled for Iteration 7.
 // Until then, allow administration only on the local server.
-$remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
-
-if (!APP_DEBUG ||
-    !in_array($remoteAddress, ['127.0.0.1', '::1'], true)) {
-    http_response_code(403);
-    exit('Access denied.');
-}
+require_role('Administrator');
 
 // Saving requires a POST request and a valid CSRF token.
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

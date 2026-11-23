@@ -15,13 +15,7 @@ require_once $projectRoot . '/includes/import_service.php';
 
 // Temporary development-only access control.
 // Replace with administrator authentication in Iteration 7.
-$remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
-
-if (!APP_DEBUG ||
-    !in_array($remoteAddress, ['127.0.0.1', '::1'], true)) {
-    http_response_code(403);
-    exit('Access denied.');
-}
+require_role('Administrator');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);

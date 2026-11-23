@@ -16,13 +16,7 @@ require_once $projectRoot . '/includes/security.php';
 require_once $projectRoot . '/includes/config.php';
 
 // Restrict admin access to local development until Iteration 7.
-$remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
-
-if (!APP_DEBUG ||
-    !in_array($remoteAddress, ['127.0.0.1', '::1'], true)) {
-    http_response_code(403);
-    exit('Access denied.');
-}
+require_role('Administrator');
 
 // Start the session before HTML output so the browser
 // receives the session cookie used for CSRF protection.
@@ -63,7 +57,6 @@ $pageTitle = 'Manage Scholarships | Pathways to Scholarships';
 
 require_once $projectRoot . '/includes/header.php';
 require_once $projectRoot . '/includes/nav.php';
-require_once $projectRoot . '/includes/dev_banner.php';
 ?>
 
 <main class="container py-5">

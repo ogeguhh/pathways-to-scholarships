@@ -1,0 +1,14 @@
+# Pathways to Scholarships
+# Iteration 7 - Internal File Protection
+
+Options -Indexes
+
+# Protect hidden files.
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Protect sensitive file types.
+<FilesMatch "\.(sql|bak|backup|ini|env|log)$">
+    Require all denied
+</FilesMatch>

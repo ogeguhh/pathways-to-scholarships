@@ -1,0 +1,341 @@
+Role,Method,Endpoint,Expected Permission,Expected HTTP,Expected Redirect,Actual HTTP,Actual Redirect,Result,Notes
+Visitor,GET,/index.php,Allow,200,,200,,PASS,
+Visitor,GET,/pages/about.php,Allow,200,,200,,PASS,
+Visitor,GET,/pages/contact.php,Allow,200,,200,,PASS,
+Visitor,GET,/pages/faq.php,Allow,200,,200,,PASS,
+Visitor,GET,/pages/register.php,Allow,200,,200,,PASS,
+Visitor,GET,/pages/scholarship_detail.php?id=7,Allow,200,,200,,PASS,
+Visitor,GET,/pages/scholarship_facts.php,Allow,200,,200,,PASS,
+Visitor,GET,/pages/scholarships.php,Allow,200,,200,,PASS,
+Visitor,GET,/pages/profile.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/pages/change_password.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/pages/logout.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/coverage_report.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/dashboard.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/data_quality.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/import.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/import_history.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/import_template.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/import_validation.php?batch_id=2,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/provider_form.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,Missing provider ID validation
+Visitor,GET,/admin/provider_form.php?id=17,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/provider_merge.php?source_id=17,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/providers.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/scholarship_export.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/scholarship_form.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/scholarship_form.php?id=7,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/scholarship_view.php?id=7,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/scholarships.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/audit_log.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/reference_data.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/reference_form.php?table=states,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/reference_form.php?table=states&id=1,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/user_form.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/user_form.php?id=6,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/user_reset_password.php?id=6,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/users.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,
+Visitor,GET,/admin/import_commit.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,POST-only endpoint; no database changes.
+Visitor,POST,/admin/import_commit.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,Invalid CSRF token; no mutation expected.
+Visitor,GET,/admin/import_rollback.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,POST-only endpoint; no database changes.
+Visitor,POST,/admin/import_rollback.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,Invalid CSRF token; no mutation expected.
+Visitor,GET,/admin/provider_merge_save.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,POST-only endpoint; no database changes.
+Visitor,POST,/admin/provider_merge_save.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,Invalid CSRF token; no mutation expected.
+Visitor,GET,/admin/provider_save.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,POST-only endpoint; no database changes.
+Visitor,POST,/admin/provider_save.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,Invalid CSRF token; no mutation expected.
+Visitor,GET,/admin/scholarship_archive.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,POST-only endpoint; no database changes.
+Visitor,POST,/admin/scholarship_archive.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,Invalid CSRF token; no mutation expected.
+Visitor,GET,/admin/scholarship_bulk.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,POST-only endpoint; no database changes.
+Visitor,POST,/admin/scholarship_bulk.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,Invalid CSRF token; no mutation expected.
+Visitor,GET,/admin/scholarship_save.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,POST-only endpoint; no database changes.
+Visitor,POST,/admin/scholarship_save.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,Invalid CSRF token; no mutation expected.
+Visitor,GET,/admin/scholarship_verify.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,POST-only endpoint; no database changes.
+Visitor,POST,/admin/scholarship_verify.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,Invalid CSRF token; no mutation expected.
+Visitor,GET,/admin/reference_delete.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,POST-only endpoint; no database changes.
+Visitor,POST,/admin/reference_delete.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,Invalid CSRF token; no mutation expected.
+Visitor,GET,/admin/reference_save.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,POST-only endpoint; no database changes.
+Visitor,POST,/admin/reference_save.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,Invalid CSRF token; no mutation expected.
+Visitor,GET,/admin/user_save.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,POST-only endpoint; no database changes.
+Visitor,POST,/admin/user_save.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,Invalid CSRF token; no mutation expected.
+Visitor,GET,/admin/user_status.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,POST-only endpoint; no database changes.
+Visitor,POST,/admin/user_status.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,Invalid CSRF token; no mutation expected.
+Visitor,POST,/admin/user_reset_password.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,Invalid CSRF token; no mutation expected.
+Visitor,POST,/pages/profile.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,Invalid CSRF token; no mutation expected.
+Visitor,POST,/pages/change_password.php,Redirect,302,/pages/login.php,302,/pages/login.php,PASS,Invalid CSRF token; no mutation expected.
+Visitor,GET,/pages/login.php,Allow,200,,200,,PASS,
+Visitor,NAV,Administration menu,Hidden,200,,200,,PASS,Hidden
+Visitor,NAV,Super-admin menu,Hidden,200,,200,,PASS,Hidden
+Visitor,NAV,Profile link,Hidden,200,,200,,PASS,Hidden
+Visitor,NAV,Change Password link,Hidden,200,,200,,PASS,Hidden
+Visitor,NAV,Login link,Visible,200,,200,,PASS,Visible
+Student,GET,/index.php,Allow,200,,200,,PASS,
+Student,GET,/pages/about.php,Allow,200,,200,,PASS,
+Student,GET,/pages/contact.php,Allow,200,,200,,PASS,
+Student,GET,/pages/faq.php,Allow,200,,200,,PASS,
+Student,GET,/pages/register.php,Allow,200,,200,,PASS,
+Student,GET,/pages/scholarship_detail.php?id=7,Allow,200,,200,,PASS,
+Student,GET,/pages/scholarship_facts.php,Allow,200,,200,,PASS,
+Student,GET,/pages/scholarships.php,Allow,200,,200,,PASS,
+Student,GET,/pages/profile.php,Allow,200,,200,,PASS,
+Student,GET,/pages/change_password.php,Allow,200,,200,,PASS,
+Student,GET,/pages/logout.php,Allow,200,,200,,PASS,
+Student,GET,/admin/coverage_report.php,Forbidden,403,,403,,PASS,
+Student,GET,/admin/dashboard.php,Forbidden,403,,403,,PASS,
+Student,GET,/admin/data_quality.php,Forbidden,403,,403,,PASS,
+Student,GET,/admin/import.php,Forbidden,403,,403,,PASS,
+Student,GET,/admin/import_history.php,Forbidden,403,,403,,PASS,
+Student,GET,/admin/import_template.php,Forbidden,403,,403,,PASS,
+Student,GET,/admin/import_validation.php?batch_id=2,Forbidden,403,,403,,PASS,
+Student,GET,/admin/provider_form.php,Forbidden,403,,403,,PASS,Missing provider ID validation
+Student,GET,/admin/provider_form.php?id=17,Forbidden,403,,403,,PASS,
+Student,GET,/admin/provider_merge.php?source_id=17,Forbidden,403,,403,,PASS,
+Student,GET,/admin/providers.php,Forbidden,403,,403,,PASS,
+Student,GET,/admin/scholarship_export.php,Forbidden,403,,403,,PASS,
+Student,GET,/admin/scholarship_form.php,Forbidden,403,,403,,PASS,
+Student,GET,/admin/scholarship_form.php?id=7,Forbidden,403,,403,,PASS,
+Student,GET,/admin/scholarship_view.php?id=7,Forbidden,403,,403,,PASS,
+Student,GET,/admin/scholarships.php,Forbidden,403,,403,,PASS,
+Student,GET,/admin/audit_log.php,Forbidden,403,,403,,PASS,
+Student,GET,/admin/reference_data.php,Forbidden,403,,403,,PASS,
+Student,GET,/admin/reference_form.php?table=states,Forbidden,403,,403,,PASS,
+Student,GET,/admin/reference_form.php?table=states&id=1,Forbidden,403,,403,,PASS,
+Student,GET,/admin/user_form.php,Forbidden,403,,403,,PASS,
+Student,GET,/admin/user_form.php?id=6,Forbidden,403,,403,,PASS,
+Student,GET,/admin/user_reset_password.php?id=6,Forbidden,403,,403,,PASS,
+Student,GET,/admin/users.php,Forbidden,403,,403,,PASS,
+Student,GET,/admin/import_commit.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Student,POST,/admin/import_commit.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Student,GET,/admin/import_rollback.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Student,POST,/admin/import_rollback.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Student,GET,/admin/provider_merge_save.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Student,POST,/admin/provider_merge_save.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Student,GET,/admin/provider_save.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Student,POST,/admin/provider_save.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Student,GET,/admin/scholarship_archive.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Student,POST,/admin/scholarship_archive.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Student,GET,/admin/scholarship_bulk.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Student,POST,/admin/scholarship_bulk.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Student,GET,/admin/scholarship_save.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Student,POST,/admin/scholarship_save.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Student,GET,/admin/scholarship_verify.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Student,POST,/admin/scholarship_verify.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Student,GET,/admin/reference_delete.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Student,POST,/admin/reference_delete.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Student,GET,/admin/reference_save.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Student,POST,/admin/reference_save.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Student,GET,/admin/user_save.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Student,POST,/admin/user_save.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Student,GET,/admin/user_status.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Student,POST,/admin/user_status.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Student,POST,/admin/user_reset_password.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Student,POST,/pages/profile.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Student,POST,/pages/change_password.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Student,GET,/pages/login.php,Redirect,302,/,302,/,PASS,
+Student,NAV,Administration menu,Hidden,200,,200,,PASS,Hidden
+Student,NAV,Super-admin menu,Hidden,200,,200,,PASS,Hidden
+Student,NAV,Profile link,Visible,200,,200,,PASS,Visible
+Student,NAV,Change Password link,Visible,200,,200,,PASS,Visible
+Student,NAV,Login link,Hidden,200,,200,,PASS,Hidden
+Parent,GET,/index.php,Allow,200,,200,,PASS,
+Parent,GET,/pages/about.php,Allow,200,,200,,PASS,
+Parent,GET,/pages/contact.php,Allow,200,,200,,PASS,
+Parent,GET,/pages/faq.php,Allow,200,,200,,PASS,
+Parent,GET,/pages/register.php,Allow,200,,200,,PASS,
+Parent,GET,/pages/scholarship_detail.php?id=7,Allow,200,,200,,PASS,
+Parent,GET,/pages/scholarship_facts.php,Allow,200,,200,,PASS,
+Parent,GET,/pages/scholarships.php,Allow,200,,200,,PASS,
+Parent,GET,/pages/profile.php,Allow,200,,200,,PASS,
+Parent,GET,/pages/change_password.php,Allow,200,,200,,PASS,
+Parent,GET,/pages/logout.php,Allow,200,,200,,PASS,
+Parent,GET,/admin/coverage_report.php,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/dashboard.php,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/data_quality.php,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/import.php,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/import_history.php,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/import_template.php,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/import_validation.php?batch_id=2,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/provider_form.php,Forbidden,403,,403,,PASS,Missing provider ID validation
+Parent,GET,/admin/provider_form.php?id=17,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/provider_merge.php?source_id=17,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/providers.php,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/scholarship_export.php,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/scholarship_form.php,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/scholarship_form.php?id=7,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/scholarship_view.php?id=7,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/scholarships.php,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/audit_log.php,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/reference_data.php,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/reference_form.php?table=states,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/reference_form.php?table=states&id=1,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/user_form.php,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/user_form.php?id=6,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/user_reset_password.php?id=6,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/users.php,Forbidden,403,,403,,PASS,
+Parent,GET,/admin/import_commit.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Parent,POST,/admin/import_commit.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Parent,GET,/admin/import_rollback.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Parent,POST,/admin/import_rollback.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Parent,GET,/admin/provider_merge_save.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Parent,POST,/admin/provider_merge_save.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Parent,GET,/admin/provider_save.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Parent,POST,/admin/provider_save.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Parent,GET,/admin/scholarship_archive.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Parent,POST,/admin/scholarship_archive.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Parent,GET,/admin/scholarship_bulk.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Parent,POST,/admin/scholarship_bulk.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Parent,GET,/admin/scholarship_save.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Parent,POST,/admin/scholarship_save.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Parent,GET,/admin/scholarship_verify.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Parent,POST,/admin/scholarship_verify.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Parent,GET,/admin/reference_delete.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Parent,POST,/admin/reference_delete.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Parent,GET,/admin/reference_save.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Parent,POST,/admin/reference_save.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Parent,GET,/admin/user_save.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Parent,POST,/admin/user_save.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Parent,GET,/admin/user_status.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Parent,POST,/admin/user_status.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Parent,POST,/admin/user_reset_password.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Parent,POST,/pages/profile.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Parent,POST,/pages/change_password.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Parent,GET,/pages/login.php,Redirect,302,/,302,/,PASS,
+Parent,NAV,Administration menu,Hidden,200,,200,,PASS,Hidden
+Parent,NAV,Super-admin menu,Hidden,200,,200,,PASS,Hidden
+Parent,NAV,Profile link,Visible,200,,200,,PASS,Visible
+Parent,NAV,Change Password link,Visible,200,,200,,PASS,Visible
+Parent,NAV,Login link,Hidden,200,,200,,PASS,Hidden
+Administrator,GET,/index.php,Allow,200,,200,,PASS,
+Administrator,GET,/pages/about.php,Allow,200,,200,,PASS,
+Administrator,GET,/pages/contact.php,Allow,200,,200,,PASS,
+Administrator,GET,/pages/faq.php,Allow,200,,200,,PASS,
+Administrator,GET,/pages/register.php,Allow,200,,200,,PASS,
+Administrator,GET,/pages/scholarship_detail.php?id=7,Allow,200,,200,,PASS,
+Administrator,GET,/pages/scholarship_facts.php,Allow,200,,200,,PASS,
+Administrator,GET,/pages/scholarships.php,Allow,200,,200,,PASS,
+Administrator,GET,/pages/profile.php,Allow,200,,200,,PASS,
+Administrator,GET,/pages/change_password.php,Allow,200,,200,,PASS,
+Administrator,GET,/pages/logout.php,Allow,200,,200,,PASS,
+Administrator,GET,/admin/coverage_report.php,Allow,200,,200,,PASS,
+Administrator,GET,/admin/dashboard.php,Allow,200,,200,,PASS,
+Administrator,GET,/admin/data_quality.php,Allow,200,,200,,PASS,
+Administrator,GET,/admin/import.php,Allow,200,,200,,PASS,
+Administrator,GET,/admin/import_history.php,Allow,200,,200,,PASS,
+Administrator,GET,/admin/import_template.php,Allow,200,,200,,PASS,
+Administrator,GET,/admin/import_validation.php?batch_id=2,Allow,200,,200,,PASS,
+Administrator,GET,/admin/provider_form.php,Allow,400,,400,,PASS,Missing provider ID validation
+Administrator,GET,/admin/provider_form.php?id=17,Allow,200,,200,,PASS,
+Administrator,GET,/admin/provider_merge.php?source_id=17,Allow,200,,200,,PASS,
+Administrator,GET,/admin/providers.php,Allow,200,,200,,PASS,
+Administrator,GET,/admin/scholarship_export.php,Allow,200,,200,,PASS,
+Administrator,GET,/admin/scholarship_form.php,Allow,200,,200,,PASS,
+Administrator,GET,/admin/scholarship_form.php?id=7,Allow,200,,200,,PASS,
+Administrator,GET,/admin/scholarship_view.php?id=7,Allow,200,,200,,PASS,
+Administrator,GET,/admin/scholarships.php,Allow,200,,200,,PASS,
+Administrator,GET,/admin/audit_log.php,Forbidden,403,,403,,PASS,
+Administrator,GET,/admin/reference_data.php,Forbidden,403,,403,,PASS,
+Administrator,GET,/admin/reference_form.php?table=states,Forbidden,403,,403,,PASS,
+Administrator,GET,/admin/reference_form.php?table=states&id=1,Forbidden,403,,403,,PASS,
+Administrator,GET,/admin/user_form.php,Forbidden,403,,403,,PASS,
+Administrator,GET,/admin/user_form.php?id=6,Forbidden,403,,403,,PASS,
+Administrator,GET,/admin/user_reset_password.php?id=6,Forbidden,403,,403,,PASS,
+Administrator,GET,/admin/users.php,Forbidden,403,,403,,PASS,
+Administrator,GET,/admin/import_commit.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Administrator,POST,/admin/import_commit.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Administrator,GET,/admin/import_rollback.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Administrator,POST,/admin/import_rollback.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Administrator,GET,/admin/provider_merge_save.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Administrator,POST,/admin/provider_merge_save.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Administrator,GET,/admin/provider_save.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Administrator,POST,/admin/provider_save.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Administrator,GET,/admin/scholarship_archive.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Administrator,POST,/admin/scholarship_archive.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Administrator,GET,/admin/scholarship_bulk.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Administrator,POST,/admin/scholarship_bulk.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Administrator,GET,/admin/scholarship_save.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Administrator,POST,/admin/scholarship_save.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Administrator,GET,/admin/scholarship_verify.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Administrator,POST,/admin/scholarship_verify.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Administrator,GET,/admin/reference_delete.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Administrator,POST,/admin/reference_delete.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Administrator,GET,/admin/reference_save.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Administrator,POST,/admin/reference_save.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Administrator,GET,/admin/user_save.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Administrator,POST,/admin/user_save.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Administrator,GET,/admin/user_status.php,Forbidden,403,,403,,PASS,POST-only endpoint; no database changes.
+Administrator,POST,/admin/user_status.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Administrator,POST,/admin/user_reset_password.php,Forbidden,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Administrator,POST,/pages/profile.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Administrator,POST,/pages/change_password.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Administrator,GET,/pages/login.php,Redirect,302,/,302,/,PASS,
+Administrator,NAV,Administration menu,Visible,200,,200,,PASS,Visible
+Administrator,NAV,Super-admin menu,Hidden,200,,200,,PASS,Hidden
+Administrator,NAV,Profile link,Visible,200,,200,,PASS,Visible
+Administrator,NAV,Change Password link,Visible,200,,200,,PASS,Visible
+Administrator,NAV,Login link,Hidden,200,,200,,PASS,Hidden
+Super-admin,GET,/index.php,Allow,200,,200,,PASS,
+Super-admin,GET,/pages/about.php,Allow,200,,200,,PASS,
+Super-admin,GET,/pages/contact.php,Allow,200,,200,,PASS,
+Super-admin,GET,/pages/faq.php,Allow,200,,200,,PASS,
+Super-admin,GET,/pages/register.php,Allow,200,,200,,PASS,
+Super-admin,GET,/pages/scholarship_detail.php?id=7,Allow,200,,200,,PASS,
+Super-admin,GET,/pages/scholarship_facts.php,Allow,200,,200,,PASS,
+Super-admin,GET,/pages/scholarships.php,Allow,200,,200,,PASS,
+Super-admin,GET,/pages/profile.php,Allow,200,,200,,PASS,
+Super-admin,GET,/pages/change_password.php,Allow,200,,200,,PASS,
+Super-admin,GET,/pages/logout.php,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/coverage_report.php,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/dashboard.php,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/data_quality.php,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/import.php,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/import_history.php,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/import_template.php,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/import_validation.php?batch_id=2,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/provider_form.php,Allow,400,,400,,PASS,Missing provider ID validation
+Super-admin,GET,/admin/provider_form.php?id=17,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/provider_merge.php?source_id=17,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/providers.php,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/scholarship_export.php,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/scholarship_form.php,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/scholarship_form.php?id=7,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/scholarship_view.php?id=7,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/scholarships.php,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/audit_log.php,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/reference_data.php,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/reference_form.php?table=states,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/reference_form.php?table=states&id=1,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/user_form.php,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/user_form.php?id=6,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/user_reset_password.php?id=6,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/users.php,Allow,200,,200,,PASS,
+Super-admin,GET,/admin/import_commit.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Super-admin,POST,/admin/import_commit.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Super-admin,GET,/admin/import_rollback.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Super-admin,POST,/admin/import_rollback.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Super-admin,GET,/admin/provider_merge_save.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Super-admin,POST,/admin/provider_merge_save.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Super-admin,GET,/admin/provider_save.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Super-admin,POST,/admin/provider_save.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Super-admin,GET,/admin/scholarship_archive.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Super-admin,POST,/admin/scholarship_archive.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Super-admin,GET,/admin/scholarship_bulk.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Super-admin,POST,/admin/scholarship_bulk.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Super-admin,GET,/admin/scholarship_save.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Super-admin,POST,/admin/scholarship_save.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Super-admin,GET,/admin/scholarship_verify.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Super-admin,POST,/admin/scholarship_verify.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Super-admin,GET,/admin/reference_delete.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Super-admin,POST,/admin/reference_delete.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Super-admin,GET,/admin/reference_save.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Super-admin,POST,/admin/reference_save.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Super-admin,GET,/admin/user_save.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Super-admin,POST,/admin/user_save.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Super-admin,GET,/admin/user_status.php,Allow,405,,405,,PASS,POST-only endpoint; no database changes.
+Super-admin,POST,/admin/user_status.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Super-admin,POST,/admin/user_reset_password.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Super-admin,POST,/pages/profile.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Super-admin,POST,/pages/change_password.php,Allow,403,,403,,PASS,Invalid CSRF token; no mutation expected.
+Super-admin,GET,/pages/login.php,Redirect,302,/,302,/,PASS,
+Super-admin,NAV,Administration menu,Visible,200,,200,,PASS,Visible
+Super-admin,NAV,Super-admin menu,Visible,200,,200,,PASS,Visible
+Super-admin,NAV,Profile link,Visible,200,,200,,PASS,Visible
+Super-admin,NAV,Change Password link,Visible,200,,200,,PASS,Visible
+Super-admin,NAV,Login link,Hidden,200,,200,,PASS,Hidden

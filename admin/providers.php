@@ -17,13 +17,7 @@ require_once $projectRoot . '/includes/security.php';
 require_once $projectRoot . '/includes/config.php';
 
 // Use the existing local-development access restriction.
-$remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
-
-if (!APP_DEBUG ||
-    !in_array($remoteAddress, ['127.0.0.1', '::1'], true)) {
-    http_response_code(403);
-    exit('Access denied.');
-}
+require_role('Administrator');
 
 $pdo = getDBConnection();
 
@@ -56,7 +50,6 @@ $pageTitle = 'Manage Providers | Pathways to Scholarships';
 
 require_once $projectRoot . '/includes/header.php';
 require_once $projectRoot . '/includes/nav.php';
-require_once $projectRoot . '/includes/dev_banner.php';
 ?>
 
 <main class="container py-5">

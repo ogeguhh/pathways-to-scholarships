@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/security.php';
 
 require_once __DIR__ . '/import_theme_assignments.php';
 
@@ -494,14 +495,13 @@ function commitScholarshipBatch(int $batchId): int
         );
 
         $auditStmt->execute([
-            null,
+            current_user_id(),
             'import',
             'import_batch',
             $batchId,
             json_encode([
                 'import_batch_id' => $batchId,
-                'scholarships_imported' => $committed,
-                'development_mode' => true
+                'scholarships_imported' => $committed
             ], JSON_THROW_ON_ERROR)
         ]);
 
@@ -600,14 +600,13 @@ function rollbackScholarshipBatch(int $batchId): int
         );
 
         $auditStmt->execute([
-            null,
+            current_user_id(),
             'rollback',
             'import_batch',
             $batchId,
             json_encode([
                 'import_batch_id' => $batchId,
-                'scholarships_removed' => $deletedCount,
-                'development_mode' => true
+                'scholarships_removed' => $deletedCount
             ], JSON_THROW_ON_ERROR)
         ]);
 

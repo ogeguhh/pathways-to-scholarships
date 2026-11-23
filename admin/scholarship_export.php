@@ -18,13 +18,7 @@ require_once $projectRoot . '/includes/import_fields.php';
 
 // Restrict this administrative export to local development
 // until role-based authentication is implemented.
-$remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
-
-if (!APP_DEBUG ||
-    !in_array($remoteAddress, ['127.0.0.1', '::1'], true)) {
-    http_response_code(403);
-    exit('Access denied.');
-}
+require_role('Administrator');
 
 $pdo = getDBConnection();
 

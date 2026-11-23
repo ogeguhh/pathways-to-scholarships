@@ -17,13 +17,7 @@ require_once $projectRoot . '/includes/config.php';
 
 // Keep administration restricted to local development
 // until authentication is implemented in Iteration 7.
-$remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
-
-if (!APP_DEBUG ||
-    !in_array($remoteAddress, ['127.0.0.1', '::1'], true)) {
-    http_response_code(403);
-    exit('Access denied.');
-}
+require_role('Administrator');
 
 $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 
@@ -63,7 +57,6 @@ $pageTitle = 'Edit Provider | Pathways to Scholarships';
 
 require_once $projectRoot . '/includes/header.php';
 require_once $projectRoot . '/includes/nav.php';
-require_once $projectRoot . '/includes/dev_banner.php';
 ?>
 
 <main class="container py-5">

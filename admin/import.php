@@ -18,13 +18,7 @@ require_once $projectRoot . '/includes/import_service.php';
 
 // Temporary development-only access restriction.
 // Replace with administrator authentication before deployment.
-$remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
-
-if (!APP_DEBUG ||
-    !in_array($remoteAddress, ['127.0.0.1', '::1'], true)) {
-    http_response_code(403);
-    exit('Access denied.');
-}
+require_role('Administrator');
 
 $errors = [];
 $uploadedBatches = [];
@@ -148,7 +142,6 @@ $pageTitle = 'Import Scholarships | Pathways to Scholarships';
 
 require_once $projectRoot . '/includes/header.php';
 require_once $projectRoot . '/includes/nav.php';
-require_once $projectRoot . '/includes/dev_banner.php';
 ?>
 
 <main class="container py-5">

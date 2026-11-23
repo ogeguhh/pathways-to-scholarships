@@ -42,7 +42,6 @@ $pageTitle = 'Home | Pathways to Scholarships';
 // Load reusable page components.
 require_once __DIR__ . '/includes/header.php';
 require_once __DIR__ . '/includes/nav.php';
-require_once __DIR__ . '/includes/dev_banner.php';
 ?>
 
 <!-- Homepage introduction -->

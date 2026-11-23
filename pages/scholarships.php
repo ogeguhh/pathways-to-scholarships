@@ -337,7 +337,6 @@ try {
 
 require_once $projectRoot . '/includes/header.php';
 require_once $projectRoot . '/includes/nav.php';
-require_once $projectRoot . '/includes/dev_banner.php';
 ?>
 
 <main class="container py-5">

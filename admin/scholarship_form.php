@@ -17,13 +17,7 @@ require_once $projectRoot . '/includes/config.php';
 
 // Until Iteration 7 authentication is implemented,
 // allow admin pages only in local development.
-$remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
-
-if (!APP_DEBUG ||
-    !in_array($remoteAddress, ['127.0.0.1', '::1'], true)) {
-    http_response_code(403);
-    exit('Access denied.');
-}
+require_role('Administrator');
 
 $pdo = getDBConnection();
 
@@ -231,7 +225,6 @@ $pageTitle = ($isEditing ? 'Edit' : 'Create')
 
 require_once $projectRoot . '/includes/header.php';
 require_once $projectRoot . '/includes/nav.php';
-require_once $projectRoot . '/includes/dev_banner.php';
 ?>
 
 <main class="container py-5">

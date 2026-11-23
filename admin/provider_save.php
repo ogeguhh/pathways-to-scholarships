@@ -16,13 +16,7 @@ require_once $projectRoot . '/includes/security.php';
 require_once $projectRoot . '/includes/config.php';
 
 // Restrict access to local development until Iteration 7.
-$remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
-
-if (!APP_DEBUG ||
-    !in_array($remoteAddress, ['127.0.0.1', '::1'], true)) {
-    http_response_code(403);
-    exit('Access denied.');
-}
+require_role('Administrator');
 
 // Provider updates must use POST and a valid CSRF token.
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

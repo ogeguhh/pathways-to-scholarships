@@ -15,13 +15,9 @@ require_once $projectRoot . '/includes/config.php';
 require_once $projectRoot . '/includes/import_fields.php';
 
 // Temporary development-only restriction.
-$remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
+require_once $projectRoot . '/includes/security.php';
 
-if (!APP_DEBUG ||
-    !in_array($remoteAddress, ['127.0.0.1', '::1'], true)) {
-    http_response_code(403);
-    exit('Access denied.');
-}
+require_role('Administrator');
 
 // Tell the browser to download a CSV file.
 header('Content-Type: text/csv; charset=UTF-8');

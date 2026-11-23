@@ -17,13 +17,7 @@ require_once $projectRoot . '/includes/config.php';
 
 // Until authentication is implemented in Iteration 7,
 // restrict administration to local development.
-$remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
-
-if (!APP_DEBUG ||
-    !in_array($remoteAddress, ['127.0.0.1', '::1'], true)) {
-    http_response_code(403);
-    exit('Access denied.');
-}
+require_role('Administrator');
 
 // Verification changes database information, so POST is required.
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

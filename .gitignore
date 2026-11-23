@@ -1,9 +1,14 @@
+
 # macOS files
 .DS_Store
 
 # Local database configuration
 includes/config.php
 .env
+.env.*
+
+# Private installation notes and credentials
+docs/private_install_notes.md
 
 # Editor settings
 .vscode/
@@ -17,3 +22,13 @@ includes/config.php
 # Local backups
 *.backup
 *.bak
+
+# Python generated files
+__pycache__/
+*.pyc
+.venv/
+
+# Local imported data
+imports/*
+!imports/.htaccess
+!imports/.gitkeep
