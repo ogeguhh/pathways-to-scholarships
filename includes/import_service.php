@@ -29,19 +29,22 @@ function importStudentFromFilename(string $filename): ?string
     return null;
 }
 
-// Check whether a normalized URL already exists in live scholarships.
-function findExistingScholarship(PDO $pdo, string $url): ?int
+// Check whether the URL and scholarship name match an active record.
+function findExistingScholarship(PDO $pdo, string $url, string $name): ?int
 {
     $stmt = $pdo->prepare(
         'SELECT scholarship_id
          FROM scholarships
-         WHERE normalized_url = :url
+         WHERE BINARY normalized_url = BINARY :url
+           AND BINARY LOWER(TRIM(scholarship_name)) =
+               BINARY LOWER(TRIM(:name))
            AND status = :status
          LIMIT 1'
     );
 
     $stmt->execute([
         ':url' => $url,
+        ':name' => $name,
         ':status' => 'active',
     ]);
 
@@ -79,7 +82,7 @@ function stageScholarshipCSV(string $filePath, string $originalFilename): int
         $batchId = (int) $pdo->lastInsertId();
 
         // Track duplicates within the uploaded file.
-        $seenUrls = [];
+        $seenKeys = [];
 
         // Check duplicates against previously staged files.
         $stagedDuplicateStmt = $pdo->prepare(
@@ -89,7 +92,10 @@ function stageScholarshipCSV(string $filePath, string $originalFilename): int
                ON ib.import_batch_id = sr.import_batch_id
              WHERE JSON_UNQUOTE(
                  JSON_EXTRACT(sr.cleaned_data, "$.normalized_url")
-             ) = :url
+             ) COLLATE utf8mb4_bin = :url
+               AND BINARY LOWER(TRIM(JSON_UNQUOTE(
+                   JSON_EXTRACT(sr.cleaned_data, \'$."Scholarship name"\')
+               ))) = BINARY LOWER(TRIM(:name))
                AND ib.batch_status IN ("staged", "validated")
                AND sr.validation_status IN ("Ready", "Warning")
              LIMIT 1'
@@ -120,24 +126,34 @@ function stageScholarshipCSV(string $filePath, string $originalFilename): int
             $duplicateId = null;
 
             $url = $cleaned['normalized_url'];
+            $name = $cleaned['Scholarship name'];
+
+            // Combine URL and name into one duplicate key.
+            $duplicateKey = json_encode([
+                $url,
+                mb_strtolower(trim($name), 'UTF-8')
+            ], JSON_THROW_ON_ERROR);
 
             // Only perform duplicate checks on valid URLs.
             if ($url !== null && $status !== 'Error') {
-                $duplicateId = findExistingScholarship($pdo, $url);
+                $duplicateId = findExistingScholarship($pdo, $url, $name);
 
-                $stagedDuplicateStmt->execute([':url' => $url]);
+                $stagedDuplicateStmt->execute([
+                    ':url' => $url,
+                    ':name' => $name
+                ]);
                 $stagedId = $stagedDuplicateStmt->fetchColumn();
 
-                if (isset($seenUrls[$url]) ||
+                if (isset($seenKeys[$duplicateKey]) ||
                     $duplicateId !== null ||
                     $stagedId !== false) {
                     $status = 'Duplicate';
                     $message = trim(
-                        $message . ' Duplicate official scholarship URL.'
+                        $message . ' Duplicate official URL and scholarship name.'
                     );
                 }
 
-                $seenUrls[$url] = true;
+                $seenKeys[$duplicateKey] = true;
             }
 
             $rowStmt->execute([
@@ -341,9 +357,9 @@ function commitScholarshipBatch(int $batchId): int
             $url = $data['normalized_url'];
 
             // Check again because other batches may have committed since staging.
-            if (findExistingScholarship($pdo, $url) !== null) {
+            if (findExistingScholarship($pdo, $url, $data['Scholarship name']) !== null) {
                 throw new RuntimeException(
-                    'A scholarship URL was already committed. Revalidate this batch.'
+                    'A matching scholarship URL and name already exist. Revalidate this batch.'
                 );
             }
 

@@ -248,3 +248,78 @@ and merged into main through reviewed pull requests.
 Local database credentials, account passwords, and
 private installation notes must not be committed
 to the repository.
+
+## Iteration 7 - Import Corrections
+
+### Duplicate Detection
+
+Following the professor's clarification, duplicate scholarships
+are identified using a combination of:
+
+- Normalized official scholarship URL
+- Scholarship name (case-insensitive)
+
+Different scholarships may share the same official URL.
+
+This rule applies to CSV imports, existing active scholarships,
+manual scholarship management, and database uniqueness enforcement.
+
+### Date Validation
+
+The import validator now converts two-digit years into
+four-digit years. For example, 1/15/27 becomes 2027-01-15.
+
+Invalid calendar dates and years outside 1900-2100
+are rejected by the date parser.
+
+### Existing Database Installations
+
+If your database was created before this correction:
+
+1. Back up your existing database.
+2. Open MySQL Workbench and connect to your database.
+3. Select your existing scholarship database.
+4. Open sql/migration_iteration7_duplicate_key.sql.
+5. Execute the entire migration script once.
+6. Re-upload any pending CSV import batches.
+
+The migration preserves existing scholarship records.
+Previously staged or validated batches are marked as failed
+because they were evaluated using the old duplicate rule.
+
+Do not run the migration more than once.
+
+The migration does not repair dates from previous imports.
+Review previously imported dates if necessary.
+
+### Fresh Installations
+
+New installations should use the updated sql/schema_v1.sql.
+Do not run the duplicate key migration on a fresh database
+created using the updated schema.
+
+### Class Dataset Validation Results
+
+The combined class dataset contained 273 submitted rows.
+
+| Status | Previous Rule | Updated Rule |
+|---|---:|---:|
+| Ready | 45 | 70 |
+| Warning | 161 | 174 |
+| Duplicate | 56 | 18 |
+| Error | 11 | 11 |
+| Eligible for import | 206 | 244 |
+
+All 244 eligible records were successfully imported
+into the local development database.
+
+During post-import verification, 33 incorrectly converted
+dates were identified and repaired using the original
+submitted values.
+
+The final local database contained 302 active scholarships
+and 3 archived scholarships.
+
+Local database contents are not automatically transferred
+through GitHub. Each team member must import the dataset
+into their own database.

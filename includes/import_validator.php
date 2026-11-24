@@ -68,12 +68,40 @@ function cleanImportDate(mixed $value): ?string
         return null;
     }
 
-    foreach (['!Y-m-d', '!Y-m-d H:i:s', '!m/d/Y', '!n/j/Y', '!F j, Y', '!M j, Y'] as $format) {
+    // Expand two-digit years before parsing spreadsheet dates.
+    // Example: 1/15/27 becomes 1/15/2027.
+    if (preg_match(
+        '/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/',
+        $text,
+        $matches
+    )) {
+        $text = $matches[1] . '/' . $matches[2]
+            . '/' . (2000 + (int) $matches[3]);
+    }
+
+    // Accept supported date formats without guessing invalid dates.
+    foreach ([
+        '!Y-m-d',
+        '!Y-m-d H:i:s',
+        '!m/d/Y',
+        '!n/j/Y',
+        '!F j, Y',
+        '!M j, Y'
+    ] as $format) {
         $date = DateTimeImmutable::createFromFormat($format, $text);
         $errors = DateTimeImmutable::getLastErrors();
 
         if ($date !== false && ($errors === false ||
-            ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) {
+            ($errors['warning_count'] === 0 &&
+             $errors['error_count'] === 0))) {
+
+            // Reject unrealistic scholarship dates.
+            $year = (int) $date->format('Y');
+
+            if ($year < 1900 || $year > 2100) {
+                continue;
+            }
+
             return $date->format('Y-m-d');
         }
     }

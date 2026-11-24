@@ -383,22 +383,24 @@ try {
         }
     }
 
-    // FR-IMP-06: the normalized official URL is the duplicate key.
-    // An edited scholarship may retain its own existing URL.
+    // Updated FR-IMP-06: URL and scholarship name form the duplicate key.
+    // An edited scholarship may retain its own existing duplicate key.
     $stmt = $pdo->prepare(
         'SELECT scholarship_id
          FROM scholarships
-         WHERE normalized_url = ?
+         WHERE BINARY normalized_url = BINARY ?
+           AND BINARY LOWER(TRIM(scholarship_name)) =
+               BINARY LOWER(TRIM(?))
            AND status = ?
            AND (? IS NULL OR scholarship_id <> ?)
          LIMIT 1'
     );
 
-    $stmt->execute([$normalizedUrl, 'active', $id, $id]);
+    $stmt->execute([$normalizedUrl, $name, 'active', $id, $id]);
 
     if ($stmt->fetch()) {
         throw new RuntimeException(
-            'An active scholarship already uses this official URL.'
+            'An active scholarship already uses this official URL and scholarship name.'
         );
     }
 

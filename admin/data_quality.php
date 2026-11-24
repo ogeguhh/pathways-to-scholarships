@@ -87,7 +87,7 @@ $qualityChecks = [
         "
     ],
     'Possible Duplicates' => [
-        'description' => 'Scholarships sharing the same normalized official URL.',
+        'description' => 'Scholarships with matching URLs and names, or matching names and providers with different URLs.',
         'sql' => "
             SELECT s.scholarship_id, s.scholarship_name,
                    s.official_url AS issue_value
@@ -99,7 +99,22 @@ $qualityChecks = [
                   SELECT 1
                   FROM scholarships other
                   WHERE other.status = 'active'
-                    AND other.normalized_url = s.normalized_url
+                    AND (
+                        (
+                            BINARY other.normalized_url =
+                                BINARY s.normalized_url
+                            AND BINARY LOWER(TRIM(other.scholarship_name)) =
+                                BINARY LOWER(TRIM(s.scholarship_name))
+                        )
+                        OR
+                        (
+                            other.provider_id = s.provider_id
+                            AND BINARY LOWER(TRIM(other.scholarship_name)) =
+                                BINARY LOWER(TRIM(s.scholarship_name))
+                            AND BINARY other.normalized_url <>
+                                BINARY s.normalized_url
+                        )
+                    )
                     AND other.scholarship_id <> s.scholarship_id
               )
             ORDER BY s.normalized_url, s.scholarship_name

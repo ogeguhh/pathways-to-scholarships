@@ -179,13 +179,25 @@ CREATE TABLE scholarships (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP,
 
-    -- A generated hash enforces URL uniqueness for active
-    -- records while permitting archived records to retain URLs.
-    active_url_hash BINARY(32)
+    -- A generated composite hash enforces URL and name
+    -- uniqueness for active scholarships.
+    -- Archived scholarships are exempt from this constraint.
+    active_duplicate_hash BINARY(32)
         GENERATED ALWAYS AS (
             CASE
                 WHEN status = 'active'
-                THEN UNHEX(SHA2(normalized_url, 256))
+                THEN UNHEX(
+                    SHA2(
+                        CONCAT(
+                            SHA2(normalized_url, 256),
+                            SHA2(
+                                LOWER(TRIM(scholarship_name)),
+                                256
+                            )
+                        ),
+                        256
+                    )
+                )
                 ELSE NULL
             END
         ) STORED,
@@ -200,7 +212,7 @@ CREATE TABLE scholarships (
     FOREIGN KEY (updated_by) REFERENCES users(user_id)
         ON DELETE SET NULL,
 
-    UNIQUE KEY uq_active_url (active_url_hash),
+    UNIQUE KEY uq_active_duplicate (active_duplicate_hash),
     INDEX idx_scholarship_state (state_id),
     INDEX idx_scholarship_deadline (application_deadline),
     INDEX idx_scholarship_normalized_url (normalized_url(191)),
